@@ -1,0 +1,6 @@
+.fuse*
+*.swp
+nohup.out
+build/
+_build/
+.idea/
