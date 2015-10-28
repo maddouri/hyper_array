@@ -35,3 +35,4 @@ set_property(TARGET ${playground} PROPERTY CXX_STANDARD 11)
 # pragmatic testing using CATCH
 file(GLOB test_files "test/*.cpp")
 add_executable(tests "${test_files}")  # "test" is a reserved target name
+set_property(TARGET tests PROPERTY CXX_STANDARD 11)
