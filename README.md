@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/maddouri/hyper_array.svg?branch=master)](https://travis-ci.org/maddouri/hyper_array)
+
 # hyper_array
 
 `hyper_array::array` is a simple, templated, multi-dimensional array class that is inspired by [`orca_array`](https://github.com/astrobiology/orca_array). It uses modern C++ techniques in order to achieve good performance, code clarity and platform independence.
