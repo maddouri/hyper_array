@@ -2,9 +2,7 @@ language: cpp
 compiler: clang
 script:
   - mkdir -p _build/test _build/src
-  - cd _build/test
-  - clang++ -stdlib=libc++ -std=c++11 -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat-pedantic -Wno-exit-time-destructors -Werror ../test/*.cpp -o tests
-  - cd ../src
-  - clang++ -stdlib=libc++ -std=c++11 -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat-pedantic -Wno-exit-time-destructors -Werror ../src/playground.cpp -o playground
+  - clang++ -stdlib=libc++ -std=c++11 -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat-pedantic -Wno-exit-time-destructors -Werror test/*.cpp -o _build/test/tests
+  - clang++ -stdlib=libc++ -std=c++11 -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat-pedantic -Wno-exit-time-destructors -Werror src/playground.cpp -o _build/test/playground
 
 
