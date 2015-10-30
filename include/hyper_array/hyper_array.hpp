@@ -14,21 +14,30 @@
 
 // <editor-fold desc="Includes">
 // std
-//#include <algorithm>  // during dev. replaced by compile-time equivalents in hyper_array::internal
-#include <array>        // std::array for hyper_array::array::dimensionLengths and indexCoeffs
-#include <cassert>      // assert
-#include <memory>       // unique_ptr for hyper_array::array::_dataOwner
+//#include <algorithm>       // during dev. replaced by compile-time equivalents in hyper_array::internal
+#include <array>             // std::array for hyper_array::array::dimensionLengths and indexCoeffs
+#include <cassert>           // assert()
+#include <initializer_list>  // std::initializer_list for the constructors
+#include <memory>            // std::unique_ptr for hyper_array::array::_dataOwner
+#include <sstream>           // stringstream in hyper_array::array::validateIndexRanges()
+#include <type_traits>       // template metaprogramming stuff in hyper_array::internal
 #if HYPER_ARRAY_CONFIG_Overload_Stream_Operator
-#include <ostream>      // ostream for the overloaded operator<<()
+#include <iterator>          // std::ostream_iterator in operator<<()
+#include <ostream>           // std::ostream for the overloaded operator<<()
 #endif
-#include <sstream>      // stringstream in hyper_array::array::validateIndexRanges()
-#include <type_traits>  // template metaprogramming stuff in hyper_array::internal
 // </editor-fold>
 
 
 /// The hyper_array lib's namespace
 namespace hyper_array
 {
+
+/// @see https://en.wikipedia.org/wiki/Row-major_order
+enum class array_order : int
+{
+    ROW_MAJOR    = 0,  ///< a.k.a. C-style order
+    COLUMN_MAJOR = 1   ///< a.k.a. Fortran-style order
+};
 
 // <editor-fold defaultstate="collapsed" desc="Internal Helper Blocks">
 /// Helper functions for hyper_array::array's implementation
@@ -133,6 +142,75 @@ namespace internal
                                        op_sum, op_prod))
              : initialValue;
     }
+
+    /// computes the index coefficients given a specific "Order"
+    /// row-major order
+    /* doc-style comment block disabled because doxygen/doxypress can't handle it
+       just copy/paste into : https://www.codecogs.com/latex/eqneditor.php
+        \f[
+            \begin{cases}
+            C_i = \prod_{j=i+1}^{n-1} L_j
+            \\
+            \begin{cases}
+                i   &\in [0, \text{Dimensions - 1}] \\
+                C_i &: \text{\_coeffs[i]}           \\
+                L_j &: \text{\_lengths[j]}
+            \end{cases}
+            \end{cases}
+        \f]
+    */
+    template <typename size_type, std::size_t Dimensions, array_order Order>
+    enable_if_t<
+        Order == array_order::ROW_MAJOR,
+        ::std::array<size_type, Dimensions>>
+    computeIndexCoeffs(const ::std::array<size_type, Dimensions>& dimensionLengths) noexcept
+    {
+        ::std::array<size_type, Dimensions> coeffs;
+        for (size_type i = 0 ; i < Dimensions ; ++i)
+        {
+            coeffs[i] = internal::ct_accumulate(dimensionLengths,
+                                                i + 1,
+                                                Dimensions - i - 1,
+                                                static_cast<size_type>(1),
+                                                internal::ct_prod<size_type>);
+        }
+        return coeffs;
+    }
+
+    /// computes the index coefficients given a specific "Order"
+    /// column-major order
+    /* doc-style comment block disabled because doxygen/doxypress can't handle it
+       just copy/paste into : https://www.codecogs.com/latex/eqneditor.php
+        \f[
+            \begin{cases}
+            C_i = \prod_{j=0}^{i-1} L_j
+            \\
+            \begin{cases}
+                i   &\in [0, \text{Dimensions - 1}] \\
+                C_i &: \text{\_coeffs[i]}           \\
+                L_j &: \text{\_lengths[j]}
+            \end{cases}
+            \end{cases}
+        \f]
+    */
+    template <typename size_type, std::size_t Dimensions, array_order Order>
+    enable_if_t<
+        Order == array_order::COLUMN_MAJOR,
+        ::std::array<size_type, Dimensions>>
+    computeIndexCoeffs(const ::std::array<size_type, Dimensions>& dimensionLengths) noexcept
+    {
+        ::std::array<size_type, Dimensions> coeffs;
+        for (size_type i = 0 ; i < Dimensions ; ++i)
+        {
+            coeffs[i] = internal::ct_accumulate(dimensionLengths,
+                                                0,
+                                                i,
+                                                static_cast<size_type>(1),
+                                                internal::ct_prod<size_type>);
+        }
+        return coeffs;
+    }
+
 }
 // </editor-fold>
 
@@ -140,8 +218,10 @@ namespace internal
 /// Inspired by [orca_array](https://github.com/astrobiology/orca_array)
 template
 <
-    typename    ValueType,  ///< elements' type
-    std::size_t Dimensions  ///< number of dimensions
+    typename    ValueType,   ///< elements' type
+    std::size_t Dimensions,  ///< number of dimensions
+    /// the convention for arranging the elements in the underlying array
+    array_order Order = array_order::ROW_MAJOR
 >
 class array
 {
@@ -163,17 +243,11 @@ public:
     using reverse_iterator       = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     // others
-    using array_type             = array<value_type, Dimensions>;
+    using array_type             = array<value_type, Dimensions, Order>;
     using index_type             = std::size_t;
     // </editor-fold>
 
     // Attributes //////////////////////////////////////////////////////////////////////////////////
-
-    // <editor-fold desc="Static Attributes">
-public:
-    /// number of dimensions
-    static constexpr size_type dimensions = Dimensions;
-    // </editor-fold>
 
     // <editor-fold desc="Class Attributes">
 private:
@@ -187,24 +261,6 @@ private:
     ::std::array<size_type, Dimensions> _lengths;
 
     /// coefficients to use when computing the index
-    ///
-    /* doc-style comment block disabled becaus doxygen/doxypress can't handle it
-       just copy/pase into : https://www.codecogs.com/latex/eqneditor.php
-        \f[
-            \begin{cases}
-            C_i = \begin{cases}
-                  \prod_{j=i+1}^{n-2} L_j  &  \text{if } i \in [0, n-2]  \\
-                  1                        &  \text{if } i = n-1
-            \end{cases}
-            \\
-            \begin{cases}
-                n   &: \text{Dimensions - 1}  \\
-                C_i &: \text{\_coeffs[i]}     \\
-                L_j &: \text{\_lengths[j]}
-            \end{cases}
-            \end{cases}
-        \f]
-    */
     /// @see at()
     ::std::array<size_type, Dimensions> _coeffs;
 
@@ -250,10 +306,10 @@ public:
             && internal::are_integral<DimensionLengths...>::value>
     >
     array(DimensionLengths... dimensionLengths)
-    : _lengths   {{static_cast<size_type>(dimensionLengths)...}}
-    , _coeffs    (computeIndexCoeffs(_lengths))
-    , _size      (computeDataSize(_lengths))
-    , _dataOwner {allocateData(_size)}
+        : _lengths   {{static_cast<size_type>(dimensionLengths)...}}
+          , _coeffs    (internal::computeIndexCoeffs<size_type, Dimensions, Order>(_lengths))
+          , _size      (computeDataSize(_lengths))
+          , _dataOwner {allocateData(_size)}
     {}
 
     /// Creates a new hyper array from "raw data"
@@ -266,10 +322,38 @@ public:
                                          ///< if `nullptr`, a new data array will be allocated
          )
     : _lengths   (std::move(lengths))
-    , _coeffs    (computeIndexCoeffs(lengths))
+    , _coeffs    (internal::computeIndexCoeffs<size_type, Dimensions, Order>(lengths))
     , _size      (computeDataSize(_lengths))
     , _dataOwner {rawData == nullptr ? allocateData(_size).release() : rawData}
     {}
+
+    /// Creates a new hyper array from an initializer list
+    array(::std::array<size_type, Dimensions> lengths,  ///< length of each dimension
+          std::initializer_list<value_type>   values,   ///< {the initializer list}
+          const value_type& defaultValue      = {}      ///< default value, in case `values.size() < size()`
+    )
+    : _lengths   (std::move(lengths))
+    , _coeffs    (internal::computeIndexCoeffs<size_type, Dimensions, Order>(lengths))
+    , _size      (computeDataSize(_lengths))
+    , _dataOwner {allocateData(_size).release()}
+    {
+        if (values.size() <= size())
+        {
+            std::copy(values.begin(), values.end(),
+                      _dataOwner.get());
+            // fill any remaining number of uninitialized elements with the default value
+            if (values.size() < size())
+            {
+                std::fill(_dataOwner.get() + values.size(),
+                          _dataOwner.get() + size(),
+                          defaultValue);
+            }
+        }
+        else
+        {
+            assert(false);
+        }
+    }
     // </editor-fold>
 
     // <editor-fold defaultstate="collapsed" desc="Assignment Operators">
@@ -310,6 +394,13 @@ public:
     const_iterator         cend()    const noexcept { return const_iterator(data() + size()); }
     const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end());   }
     const_reverse_iterator crend()   const noexcept { return const_reverse_iterator(begin()); }
+    // </editor-fold>
+
+    // <editor-fold defaultstate="collapsed" desc="Template Arguments">
+    /// number of dimensions
+    static constexpr size_type   dimensions() { return Dimensions; }
+    /// the convention used for arranging the elements
+    static constexpr array_order order()      { return Order;      }
     // </editor-fold>
 
     /// Returns the length of a given dimension at run-time
@@ -502,23 +593,6 @@ private:
                                           internal::ct_prod<index_type>);
     }
 
-    static
-    ::std::array<size_type, Dimensions>
-    computeIndexCoeffs(const ::std::array<size_type, Dimensions>& dimensionLengths) noexcept
-    {
-        ::std::array<size_type, Dimensions> coeffs;
-        coeffs[Dimensions - 1] = 1;
-        for (size_type i = 0; i < (Dimensions - 1); ++i)
-        {
-            coeffs[i] = internal::ct_accumulate(dimensionLengths,
-                                                i + 1,
-                                                Dimensions - i - 1,
-                                                static_cast<size_type>(1),
-                                                internal::ct_prod<size_type>);
-        }
-        return coeffs;
-    }
-
     /// computes the total number of elements in a data array
     static
     constexpr
@@ -577,30 +651,57 @@ template<typename ValueType> using array9d = array<ValueType, 9>;
 }
 
 #if HYPER_ARRAY_CONFIG_Overload_Stream_Operator
-/// Pretty printing to the standard library's streams
+/// pretty printing of array order to the standard library's streams
+std::ostream& operator<<(std::ostream& out, const hyper_array::array_order& o)
+{
+    switch (o)
+    {
+    case hyper_array::array_order::ROW_MAJOR   : out << "ROW_MAJOR"   ; break;
+    case hyper_array::array_order::COLUMN_MAJOR: out << "COLUMN_MAJOR"; break;
+    }
+    return out;
+}
+
+namespace hyper_array
+{
+namespace internal
+{
+namespace io
+{
+    /// efficient way for doing:
+    /// @code
+    ///     for (auto& x : container) {
+    ///         out << x << separator;
+    ///     }
+    /// @endcode
+    template <typename ContainerType>
+    void copyToStream(ContainerType&& container, std::ostream& out, const char separator[] = " ")
+    {
+        std::copy(container.begin(), container.end(),
+                  std::ostream_iterator<decltype(*container.begin())>(out, separator));
+    }
+}
+}
+}
+
+/// Pretty printing of hyper arrays to the standard library's streams
 ///
 /// Should print something like
 /// @code
-///     [dimensions: 2 ][lengths: 3 4 ][coeffs: 4 1 ][size: 12 ][data: 1 2 3 4 5 6 7 8 9 10 11 12 ]
+///     [dimensions: 2 ][order: ROW_MAJOR ][lengths: 3 4 ][coeffs: 4 1 ][size: 12 ][data: 1 2 3 4 5 6 7 8 9 10 11 12 ]
 /// @endcode
-template <typename T, size_t D>
-std::ostream& operator<<(std::ostream& out, const hyper_array::array<T, D>& ha)
+template <typename ValueType, size_t Dimensions, hyper_array::array_order Order>
+std::ostream& operator<<(std::ostream& out,
+                         const hyper_array::array<ValueType, Dimensions, Order>& ha)
 {
-    out << "[dimensions: " << ha.dimensions << " ]";
+    using hyper_array::internal::io::copyToStream;
 
-    out << "[lengths: ";
-    for (auto& l : ha.lengths()) { out << l << " "; }
-    out << "]";
-
-    out << "[coeffs: ";
-    for (auto& c : ha.coeffs()) { out << c << " "; }
-    out << "]";
-
-    out << "[size: " << ha.size() << " ]";
-
-    out << "[data: ";
-    for (auto& x : ha) { out << x << " "; }
-    out << "]";
+    out << "[dimensions: " << ha.dimensions()                << " ]";
+    out << "[order: "      << ha.order()                     << " ]";
+    out << "[lengths: "     ; copyToStream(ha.lengths(), out) ; out << "]";
+    out << "[coeffs: "      ; copyToStream(ha.coeffs(), out)  ; out << "]";
+    out << "[size: "       << ha.size()                      << " ]";
+    out << "[data: "        ; copyToStream(ha, out)           ; out << "]";
 
     return out;
 }

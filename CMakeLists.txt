@@ -36,3 +36,5 @@ set_property(TARGET ${playground} PROPERTY CXX_STANDARD 11)
 file(GLOB test_files "test/*.cpp")
 add_executable(tests "${test_files}")  # "test" is a reserved target name
 set_property(TARGET tests PROPERTY CXX_STANDARD 11)
+# operator<< for array_order conflicts with CATCH
+target_compile_definitions(tests PRIVATE HYPER_ARRAY_CONFIG_Overload_Stream_Operator=0)

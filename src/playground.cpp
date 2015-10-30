@@ -14,8 +14,28 @@
 using std::cout;
 using std::endl;
 
-// shorthand for prints a hyper_array
+// shorthand for printing a hyper_array
 #define printarr(arr) cout << #arr << ": " << arr << endl;
+
+// prints 2d array
+template <typename HyperArray>
+void _print2d(const HyperArray& ha) {
+
+    cout << "[" << endl;
+    for (size_t i0 = 0 ; i0 < ha.length(0) ; ++i0)
+    {
+        cout << "    ";
+        for (size_t i1 = 0 ; i1 < ha.length(1) ; ++i1)
+        {
+            cout << ha(i0, i1) << " ";
+
+        }
+        cout << endl;
+    }
+    cout << "]" << endl;
+
+}
+#define print2d(ha) { cout << #ha << ": "; _print2d(ha); }
 
 int main()
 {
@@ -91,7 +111,6 @@ int main()
         const ::std::array<size_t, dimensions> lengths{{2,3,4}};
 
         ha_type aa{lengths};
-        printarr(aa)  // uninitialized
         std::iota(aa.begin(), aa.end(), 1);
         printarr(aa)
 
@@ -130,6 +149,64 @@ int main()
             cout << "vv[" << std::distance(&vv[0], &ha) << "] ";
             printarr(ha)
         }
+    }
+
+    // order
+    // https://en.wikipedia.org/wiki/Row-major_order#Explanation_and_example
+    {
+        cout << "\norder\n";
+
+        constexpr size_t dimensions = 2;
+        using el_type = double;
+        const ::std::array<size_t, dimensions> lengths{{2,3}};
+
+        cout << "\norder: init w/ initializer list\n";
+        {
+            const hyper_array::array<
+                el_type,
+                dimensions,
+                hyper_array::array_order::COLUMN_MAJOR> col{lengths,
+                                                            {11, 21, 12, 22, 13, 23}};
+            printarr(col);
+            print2d(col);
+        }
+        {
+            const hyper_array::array<
+                el_type,
+                dimensions,
+                hyper_array::array_order::ROW_MAJOR> row{lengths,
+                                                         {11, 12, 13, 21, 22, 23}};
+            printarr(row);
+            print2d(row);
+        }
+
+        cout << "\norder: init w/ nested loops\n";
+        {
+            hyper_array::array<
+                el_type,
+                dimensions,
+                hyper_array::array_order::COLUMN_MAJOR> col{lengths};
+            hyper_array::array<
+                el_type,
+                dimensions,
+                hyper_array::array_order::ROW_MAJOR> row{lengths};
+
+            for (size_t i0 = 0; i0 < lengths[0]; ++i0)
+            {
+                for (size_t i1 = 0; i1 < lengths[1]; ++i1)
+                {
+                    row(i0, i1) = static_cast<double>((i0+1) * 10 + (i1+1));
+                    col(i0, i1) = static_cast<double>((i0+1) * 10 + (i1+1));
+                }
+            }
+
+            printarr(col);
+            print2d(col);
+            printarr(row);
+            print2d(row);
+        }
+
+
     }
 
 
