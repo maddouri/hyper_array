@@ -5,8 +5,8 @@ compiler:
 before_install:
   - mkdir -p _build/test _build/src
   - wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key|sudo apt-key add -
-  - echo "deb http://llvm.org/apt/unstable/ llvm-toolchain-3.7 main" >> /etc/apt/sources.list
-  - echo "deb-src http://llvm.org/apt/unstable/ llvm-toolchain-3.7 main" >> /etc/apt/sources.list
+  - sudo echo "deb http://llvm.org/apt/unstable/ llvm-toolchain-3.7 main" >> /etc/apt/sources.list
+  - sudo echo "deb-src http://llvm.org/apt/unstable/ llvm-toolchain-3.7 main" >> /etc/apt/sources.list
   - sudo apt-get update
 
 insta:
