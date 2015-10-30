@@ -1,8 +1,19 @@
 language: cpp
-compiler: clang
-script:
+compiler:
+  - clang
+
+before_install:
   - mkdir -p _build/test _build/src
-  - clang++ -stdlib=libc++ -std=c++11 -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat-pedantic -Wno-exit-time-destructors -Werror test/*.cpp -o _build/test/tests
-  - clang++ -stdlib=libc++ -std=c++11 -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat-pedantic -Wno-exit-time-destructors -Werror src/playground.cpp -o _build/test/playground
+  - wget -O - http://llvm.org/apt/llvm-snapshot.gpg.key|sudo apt-key add -
+  - echo "deb http://llvm.org/apt/unstable/ llvm-toolchain-3.7 main" >> /etc/apt/sources.list
+  - echo "deb-src http://llvm.org/apt/unstable/ llvm-toolchain-3.7 main" >> /etc/apt/sources.list
+  - sudo apt-get update
+
+insta:
+  - sudo apt-get install -y clang-3.7 lldb-3.7 libc++-dev libc++abi-dev
+
+script:
+  - clang++-3.7 -stdlib=libc++ -std=c++11 -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat-pedantic -Wno-exit-time-destructors -Werror test/*.cpp -o _build/test/tests
+  - clang++-3.7 -stdlib=libc++ -std=c++11 -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat-pedantic -Wno-exit-time-destructors -Werror src/playground.cpp -o _build/test/playground
 
 
