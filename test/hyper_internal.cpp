@@ -52,7 +52,7 @@ TEST_CASE("ct_plus", "[type_traits]")
 TEST_CASE("ct_prod", "[type_traits]")
 {
     REQUIRE(hyper_array::internal::ct_prod(1, 2) == 2);
-    REQUIRE(hyper_array::internal::ct_prod(-10.0, 10.0) == -100.0);
+    REQUIRE(Approx(hyper_array::internal::ct_prod(-10.0, 10.0)) == -100.0);
     REQUIRE_FALSE(hyper_array::internal::ct_prod(300000000  , 300000000  ) == 90000000000000000  );
     REQUIRE(      hyper_array::internal::ct_prod(300000000LL, 300000000LL) == 90000000000000000LL);
 }
@@ -82,9 +82,9 @@ TEST_CASE("ct_inner_product", "[type_traits]")
     constexpr long long non_null_value = 32;  // value of dot(u, v)
 
     {
-        std::array<int, element_count> u{1, 2, 3};
-        std::array<int, element_count> v{4, 5, 6};
-        std::array<int, element_count> w{-3,6, -3};
+        std::array<int, element_count> u{{1, 2, 3}};
+        std::array<int, element_count> v{{4, 5, 6}};
+        std::array<int, element_count> w{{-3,6, -3}};
         REQUIRE(non_null_value == hyper_array::internal::ct_inner_product(
                 u, 0, v, 0, element_count, static_cast<int>(0),
                 hyper_array::internal::ct_plus<int>,
@@ -96,9 +96,9 @@ TEST_CASE("ct_inner_product", "[type_traits]")
     }
 
     {
-        std::array<double, element_count> u{1, 2, 3};
-        std::array<double, element_count> v{4, 5, 6};
-        std::array<double, element_count> w{-3,6, -3};
+        std::array<double, element_count> u{{1, 2, 3}};
+        std::array<double, element_count> v{{4, 5, 6}};
+        std::array<double, element_count> w{{-3,6, -3}};
         REQUIRE(Approx(non_null_value) == hyper_array::internal::ct_inner_product(
                 u, 0, v, 0, element_count, static_cast<double>(0.0),
                 hyper_array::internal::ct_plus<double>,

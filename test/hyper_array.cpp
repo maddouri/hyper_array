@@ -5,7 +5,7 @@
 TEST_CASE("overhead", "[overhead]")
 {
     using value_type = double;
-    constexpr auto overhead = [](const size_t dimensions) -> size_t {
+    const auto overhead = [](const size_t dimensions) -> size_t {
         return 2 * dimensions * sizeof(std::size_t)    // 2 * std::array
              + sizeof(size_t)                          // 1 * _size
              + sizeof(std::unique_ptr<value_type[]>);  // 1 * unique_ptr

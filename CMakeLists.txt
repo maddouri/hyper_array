@@ -5,7 +5,9 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(cxxFlags
         -std=c++11
         -fdiagnostics-show-option
-        -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat -Werror)
+        -Wall -Wextra -Wpedantic -Weverything
+        -Wno-c++98-compat-pedantic -Wno-exit-time-destructors
+        -Werror)
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(cxxFlags
         -std=c++11
@@ -36,5 +38,3 @@ set_property(TARGET ${playground} PROPERTY CXX_STANDARD 11)
 file(GLOB test_files "test/*.cpp")
 add_executable(tests "${test_files}")  # "test" is a reserved target name
 set_property(TARGET tests PROPERTY CXX_STANDARD 11)
-# operator<< for array_order conflicts with CATCH
-target_compile_definitions(tests PRIVATE HYPER_ARRAY_CONFIG_Overload_Stream_Operator=0)

@@ -652,6 +652,7 @@ template<typename ValueType> using array9d = array<ValueType, 9>;
 
 #if HYPER_ARRAY_CONFIG_Overload_Stream_Operator
 /// pretty printing of array order to the standard library's streams
+inline
 std::ostream& operator<<(std::ostream& out, const hyper_array::array_order& o)
 {
     switch (o)
@@ -675,6 +676,7 @@ namespace io
     ///     }
     /// @endcode
     template <typename ContainerType>
+    inline
     void copyToStream(ContainerType&& container, std::ostream& out, const char separator[] = " ")
     {
         std::copy(container.begin(), container.end(),
@@ -691,6 +693,7 @@ namespace io
 ///     [dimensions: 2 ][order: ROW_MAJOR ][lengths: 3 4 ][coeffs: 4 1 ][size: 12 ][data: 1 2 3 4 5 6 7 8 9 10 11 12 ]
 /// @endcode
 template <typename ValueType, size_t Dimensions, hyper_array::array_order Order>
+inline
 std::ostream& operator<<(std::ostream& out,
                          const hyper_array::array<ValueType, Dimensions, Order>& ha)
 {

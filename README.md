@@ -6,7 +6,15 @@
 
 ## Basics
 
-The class template `hyper_array::array<ValueType, Dimensions>` represents a `Dimensions`-dimension array of `ValueType` elements. Therefore the type and number of dimensions are specified at compile-time. The length along each dimension can be set at run-time.
+### Main Class
+
+The class template `hyper_array::array<ValueType, Dimensions, Order>` represents a `Dimensions`-dimension array of `ValueType` elements. Therefore, the type and number of dimensions are specified at compile-time. The length along each dimension can be set at run-time.
+
+### Array Order
+
+The third template argument --`Order`-- designates the [array order](https://en.wikipedia.org/wiki/Row-major_order) which can be either **row-major** _(i.e. C convention)_ or **column-major** _(i.e. Fortran convention)_ (cf. `hyper_array::array_order` enum).
+
+By default, if `Order` is not specified, the order is row-major.
 
 ### Construction
 
@@ -36,6 +44,19 @@ array(::std::array<size_type, Dimensions> lengths, value_type* rawData);
 // usage example
 double* rawData = new double[262144];
 array<double, 3> dataWrapper{{32, 64, 128}, rawData};
+
+/// create and initialize a hyper array
+/// given the dimension lengths and the array elements
+array(::std::array<size_type, Dimensions> lengths,  // dimension lenths
+      std::initializer_list<value_type>   values,   // array elements (you can provide less than size() elements)
+      const value_type& defaultValue      = {});    // default initialization value (in case values.size() < size())
+// usage example
+const array<double, 2> constantArray{
+    {2, 3},       // dimension lengths
+    {11, 12, 13,
+     21, 22, 23}  // array elements
+};
+
 ```
 
 ### Assignment
