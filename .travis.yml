@@ -1,17 +1,48 @@
+# from https://github.com/beark/ftl/blob/master/.travis.yml
+
 language: cpp
-compiler: gcc
+compiler:
+  - clang
+  - gcc
 
 env:
   - BUILD_TYPE=Debug
   - BUILD_TYPE=Release
 
 before_install:
+  - if [ "$CXX" == "g++" ]; then sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test; fi
+  - if [ "$CXX" == "clang++" ]; then sudo add-apt-repository -y ppa:h-rayflood/llvm; fi
+  - sudo apt-get update -qq
+
+install:
+  # cmake 3
   - mkdir -p _build/cmake_bin _build/cmake_build
   - wget --no-check-certificate https://cmake.org/files/v3.3/cmake-3.3.2-Linux-x86_64.tar.gz -O _build/cmake_bin/cmake.tgz
   - tar xvfz _build/cmake_bin/cmake.tgz -C _build/cmake_bin
-
-install:
   - export CMAKE3="$(pwd)/_build/cmake_bin/cmake-3.3.2-Linux-x86_64/bin/cmake"
+
+  # install g++ 4.8, if tests are run with g++
+  - if [ "$CXX" == "g++" ]; then sudo apt-get install -qq g++-4.8; fi
+  - if [ "$CXX" == "g++" ]; then sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.8 50; fi
+
+  # install clang-3.4 if CPP14==1
+  - if [ "$CXX" == "clang++" ]; then sudo apt-get install --allow-unauthenticated -qq clang-3.6; fi
+
+  - if [ "$CXX" == "clang++" ]; then cwd=$(pwd); fi
+
+  # Install libc++ if tests are run with clang++
+  - if [ "$CXX" == "clang++" ]; then svn co --quiet http://llvm.org/svn/llvm-project/libcxx/trunk@201601 libcxx; fi
+
+  - if [ "$CXX" == "clang++" ]; then cd libcxx/lib && bash buildit; fi
+  - if [ "$CXX" == "clang++" ]; then sudo cp ./libc++.so.1.0 /usr/lib/; fi
+  - if [ "$CXX" == "clang++" ]; then sudo mkdir /usr/include/c++/v1; fi
+  - if [ "$CXX" == "clang++" ]; then cd .. && sudo cp -r include/* /usr/include/c++/v1/; fi
+  - if [ "$CXX" == "clang++" ]; then cd /usr/lib && sudo ln -sf libc++.so.1.0 libc++.so; fi
+  - if [ "$CXX" == "clang++" ]; then sudo ln -sf libc++.so.1.0 libc++.so.1 && cd $cwd; fi
+
+  - if [ "$CXX" == "clang++" -a "$CPP14" == "0" ]; then CXX=clang++-3.6; fi
+
+
 
 script:
   - cd _build/cmake_build && $CMAKE3 -DCMAKE_BUILD_TYPE=$BUILD_TYPE ../.. && $CMAKE3 --build .
