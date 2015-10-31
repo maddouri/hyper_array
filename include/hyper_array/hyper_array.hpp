@@ -416,8 +416,7 @@ public:
     }
 
     /// Returns a reference to the _lengths array
-    const decltype(_lengths)&
-    lengths() const noexcept
+    const ::std::array<size_type, Dimensions>& lengths() const noexcept
     {
         return _lengths;
     }
@@ -435,8 +434,7 @@ public:
     }
 
     /// Returns a reference to the _coeffs array
-    const decltype(_coeffs)&
-    coeffs() const noexcept
+    const ::std::array<size_type, Dimensions>& coeffs() const noexcept
     {
         return _coeffs;
     }
