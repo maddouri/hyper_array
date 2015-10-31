@@ -398,9 +398,9 @@ public:
 
     // <editor-fold defaultstate="collapsed" desc="Template Arguments">
     /// number of dimensions
-    static constexpr size_type   dimensions() { return Dimensions; }
+    static constexpr size_type   dimensions() noexcept { return Dimensions; }
     /// the convention used for arranging the elements
-    static constexpr array_order order()      { return Order;      }
+    static constexpr array_order order()      noexcept { return Order;      }
     // </editor-fold>
 
     /// Returns the length of a given dimension at run-time
