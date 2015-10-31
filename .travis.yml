@@ -31,7 +31,7 @@ install:
   - if [ "$CXX" == "g++" ]; then sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.8 50; fi
 
   # install clang-3.6
-  - if [ "$CXX" == "clang++" ]; then sudo apt-get install --allow-unauthenticated -qq clang-3.6 lldb-3.6 libc++-dev libc++abi-dev; fi
+  - if [ "$CXX" == "clang++" ]; then sudo apt-get install --allow-unauthenticated -qq clang-3.6 lldb-3.6 libc++-dev; fi
 
   - if [ "$CXX" == "clang++" ]; then CXX=clang++-3.6; fi
 
