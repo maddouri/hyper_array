@@ -3,15 +3,17 @@ compiler:
   - clang
 
 before_install:
-  - mkdir -p _build/test _build/src
+  - mkdir -p _build
   - sudo add-apt-repository -y ppa:george-edison55/cmake-3.x
   - sudo apt-get update
 
 install:
   - sudo apt-get install -y cmake
+  - cmake --version
 
 script:
-  - clang++ -stdlib=libc++ -std=c++11 -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat-pedantic -Wno-exit-time-destructors -Werror test/*.cpp         -o _build/test/tests
-  - clang++ -stdlib=libc++ -std=c++11 -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat-pedantic -Wno-exit-time-destructors -Werror src/playground.cpp -o _build/test/playground
+  - cd _build
+  - cmake ..
+  - cmake --build .
 
 
