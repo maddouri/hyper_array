@@ -2,19 +2,19 @@
 environment:
   matrix:
     - GENERATOR: "Visual Studio 14"
-      CONFIG: Debug
+      BUILD_TYPE: Debug
 
     - GENERATOR: "Visual Studio 14"
-      CONFIG: Release
+      BUILD_TYPE: Release
 
     - GENERATOR: "Visual Studio 14 Win64"
-      CONFIG: Debug
+      BUILD_TYPE: Debug
 
     - GENERATOR: "Visual Studio 14 Win64"
-      CONFIG: Release
+      BUILD_TYPE: Release
 
 build_script:
   - mkdir _build
   - cd _build
-  - cmake "-G%GENERATOR%" "-DCMAKE_BUILD_TYPE=%BUILD_TYPE%" ..
-  - cmake --build .
+  - cmake "-G%GENERATOR%" ..
+  - cmake --build . --config "%CONFIG%"
