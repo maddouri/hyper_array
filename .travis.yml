@@ -2,9 +2,11 @@
 # inspired by
 #     some googling
 #     llvm.org/apt
-#     docs.travis-ci.com and github.com/beark/ftl/blob/master/.travis.yml
+#     docs.travis-ci.com
+#     github.com/beark/ftl/blob/master/.travis.yml
 #     stackoverflow.com/a/30925448/865719
 #     docs.travis-ci.com/user/apt
+#     github.com/travis-ci/apt-package-whitelist/blob/master/ubuntu-precise
 #     github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
 
 # run this in a container
@@ -24,13 +26,14 @@ addons:
     - ubuntu-toolchain-r-test
     - llvm-toolchain-precise-3.6
     packages:
-    - gcc-4.8
-    - g++-4.8
     - clang-3.6
     - libc++-dev
+    - gcc-4.8
+    - g++-4.8
 
 install:
-  - if [ "$CXX" = "g++" ]; then export CXX="g++-4.8" CC="gcc-4.8"; fi
+  # compilers
+  - if [ "$CXX" = "g++"     ]; then export CXX="g++-4.8"     CC="gcc-4.8";   fi
   - if [ "$CXX" = "clang++" ]; then export CXX="clang++-3.6" CC="clang-3.6"; fi
 
   # cmake 3
