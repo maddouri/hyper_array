@@ -20,15 +20,15 @@ env:
 addons:
   apt:
     sources:
-      - ubuntu-toolchain-r-test
+    - ubuntu-toolchain-r-test
     packages:
-      - gcc-4.8
-      - g++-4.8
-      - clang-3.6
-      - lldb-3.6
-      - libc++-dev
+    - gcc-4.8
+    - g++-4.8
+    - clang-3.6
+    - lldb-3.6
+    - libc++-dev
 
-before_install:
+install:
   # install g++
   - if [ "$CXX" = "g++" ]; then g++-4.8 --version; fi
   - if [ "$CXX" = "g++" ]; then gcc-4.8 --version; fi
@@ -41,7 +41,6 @@ before_install:
   - if [ "$CXX" = "clang++" ]; then export CXX="clang++-3.6"; fi
   - if [ "$CXX" = "clang++" ]; then export CC="clang-3.6"; fi
 
-install:
   # cmake 3
   - mkdir -p _build/cmake_bin _build/cmake_build
   - wget --no-check-certificate https://cmake.org/files/v3.3/cmake-3.3.2-Linux-x86_64.tar.gz -O _build/cmake_bin/cmake.tgz
