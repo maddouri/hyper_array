@@ -11,7 +11,7 @@ before_install:
   - sudo apt-get update
 
 install:
-  - sudo apt-get install -y cmake clang-3.7 lldb-3.7 libc++-dev libc++abi-dev
+  - sudo apt-get install -y cmake clang-3.7 lldb-3.7 libc++-dev
 
 script:
   - clang++-3.7 -stdlib=libc++ -std=c++11 -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat-pedantic -Wno-exit-time-destructors -Werror test/*.cpp -o _build/test/tests
