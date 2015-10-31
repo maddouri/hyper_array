@@ -32,6 +32,7 @@
 namespace hyper_array
 {
 
+/// represents the array (storage) order
 /// @see https://en.wikipedia.org/wiki/Row-major_order
 enum class array_order : int
 {
@@ -40,111 +41,111 @@ enum class array_order : int
 };
 
 // <editor-fold defaultstate="collapsed" desc="Internal Helper Blocks">
-/// Helper functions for hyper_array::array's implementation
+/// helper functions for hyper_array::array's implementation
 /// @note Everything here is subject to change and must NOT be used by user code
 namespace internal
 {
-    /// shorthand for the enable_if syntax
-    /// @see http://en.cppreference.com/w/cpp/types/enable_if#Helper_types
-    template <bool b, typename T = void>
-    using enable_if_t = typename std::enable_if<b, T>::type;
 
-    /// building block for a neat trick for checking multiple types against a given trait
-    template <bool...>
-    struct bool_pack
-    {};
-    /// Neat trick for checking multiple types against a given trait
-    /// https://codereview.stackexchange.com/a/107903/86688
-    template <bool... bs>
-    using are_all_true = std::is_same<bool_pack<true, bs...>,
-                                      bool_pack<bs..., true>>;
+/// shorthand for the enable_if syntax
+/// @see http://en.cppreference.com/w/cpp/types/enable_if#Helper_types
+template <bool b, typename T>
+using enable_if_t = typename std::enable_if<b, T>::type;
 
-    /// Checks that all the template arguments are integral types
-    /// @note `T&` where `std::is_integral<T>::value==true` is considered integral
-    /// by removing any reference then using `std::is_integral`
-    template <typename... Ts>
-    using are_integral = are_all_true<
-        std::is_integral<
-            typename std::remove_reference<Ts>::type
-        >::value...
-    >;
+/// building block of a neat trick for checking multiple types against a given trait
+template <bool...>
+struct bool_pack
+{};
 
-    /// Compile-time sum
-    template <typename T>
-    constexpr T ct_plus(const T x, const T y)
-    {
-        return x + y;
-    }
+/// neat trick for checking multiple types against a given trait
+/// https://codereview.stackexchange.com/a/107903/86688
+template <bool... bs>
+using are_all_true = std::is_same<bool_pack<true, bs...>,
+                                  bool_pack<bs..., true>>;
 
-    /// Compile-time product
-    template <typename T>
-    constexpr T ct_prod(const T x, const T y)
-    {
-        return x * y;
-    }
+/// checks that all the template arguments are integral types
+/// @note `T&` where `std::is_integral<T>::value==true` is considered integral
+/// by removing any reference then using `std::is_integral`
+template <typename... Ts>
+using are_integral = are_all_true<
+    std::is_integral<
+        typename std::remove_reference<Ts>::type
+    >::value...
+>;
 
-    /// Compile-time equivalent to `std::accumulate()`
-    template
-    <
-        typename    T,  ///< result type
-        std::size_t N,  ///< length of the array
-        typename    O   ///< type of the binary operation
-    >
-    constexpr
-    T ct_accumulate(const ::std::array<T, N>& arr,  ///< accumulate from this array
-                    const size_t first,             ///< starting from this position
-                    const size_t length,            ///< accumulate this number of elements
-                    const T      initialValue,      ///< let this be the accumulator's initial value
-                    const O&     op                 ///< use this binary operation
-                   )
-    {
-        // https://stackoverflow.com/a/33158265/865719
-        return (first < (first + length))
-             ? op(arr[first],
-                  ct_accumulate(arr,
-                                first + 1,
-                                length - 1,
-                                initialValue,
-                                op))
-             : initialValue;
-    }
+/// compile-time sum
+template <typename T>
+constexpr T ct_plus(const T x, const T y) { return x + y; }
 
-    /// Compile-time equivalent to `std::inner_product()`
-    template
-    <
-        typename T,      ///< the result type
-        typename T_1,    ///< first array's type
-        size_t   N_1,    ///< length of the first array
-        typename T_2,    ///< second array's type
-        size_t   N_2,    ///< length of the second array
-        typename O_SUM,  ///< summation operation's type
-        typename O_PROD  ///< multiplication operation's type
-    >
-    constexpr
-    T ct_inner_product(const ::std::array<T_1, N_1>& arr_1,  ///< calc the inner product of this array
-                       const size_t  first_1,        ///< from this position
-                       const ::std::array<T_2, N_2>& arr_2,  ///< with this array
-                       const size_t  first_2,        ///< from this position
-                       const size_t  length,         ///< using this many elements from both arrays
-                       const T       initialValue,   ///< let this be the summation's initial value
-                       const O_SUM&  op_sum,         ///< use this as the summation operator
-                       const O_PROD& op_prod         ///< use this as the multiplication operator
-                      )
-    {
-        // same logic as `ct_accumulate()`
-        return (first_1 < (first_1 + length))
-             ? op_sum(op_prod(arr_1[first_1],
-                              arr_2[first_2]),
-                      ct_inner_product(arr_1, first_1 + 1,
-                                       arr_2, first_2 + 1,
-                                       length - 1,
-                                       initialValue,
-                                       op_sum, op_prod))
-             : initialValue;
-    }
+/// compile-time product
+template <typename T>
+constexpr T ct_prod(const T x, const T y) { return x * y; }
 
-    /// computes the index coefficients given a specific "Order"
-    /// row-major order
+/// compile-time equivalent to `std::accumulate()`
+template <
+    typename    T,  ///< result type
+    std::size_t N,  ///< length of the array
+    typename    O   ///< type of the binary operation
+>
+constexpr
+T ct_accumulate(const ::std::array<T, N>& arr,  ///< accumulate from this array
+                const size_t first,             ///< starting from this position
+                const size_t length,            ///< accumulate this number of elements
+                const T      initialValue,      ///< let this be the accumulator's initial value
+                const O&     op                 ///< use this binary operation
+               )
+{
+    // https://stackoverflow.com/a/33158265/865719
+    return (first < (first + length))
+         ? op(arr[first],
+              ct_accumulate(arr,
+                            first + 1,
+                            length - 1,
+                            initialValue,
+                            op))
+         : initialValue;
+}
+
+/// compile-time equivalent to `std::inner_product()`
+template <
+    typename T,      ///< the result type
+    typename T_1,    ///< first array's type
+    size_t   N_1,    ///< length of the first array
+    typename T_2,    ///< second array's type
+    size_t   N_2,    ///< length of the second array
+    typename O_SUM,  ///< summation operation's type
+    typename O_PROD  ///< multiplication operation's type
+>
+constexpr
+T ct_inner_product(const ::std::array<T_1, N_1>& arr_1,  ///< calc the inner product of this array
+                   const size_t  first_1,        ///< from this position
+                   const ::std::array<T_2, N_2>& arr_2,  ///< with this array
+                   const size_t  first_2,        ///< from this position
+                   const size_t  length,         ///< using this many elements from both arrays
+                   const T       initialValue,   ///< let this be the summation's initial value
+                   const O_SUM&  op_sum,         ///< use this as the summation operator
+                   const O_PROD& op_prod         ///< use this as the multiplication operator
+                  )
+{
+    // same logic as `ct_accumulate()`
+    return (first_1 < (first_1 + length))
+         ? op_sum(op_prod(arr_1[first_1],
+                          arr_2[first_2]),
+                  ct_inner_product(arr_1, first_1 + 1,
+                                   arr_2, first_2 + 1,
+                                   length - 1,
+                                   initialValue,
+                                   op_sum, op_prod))
+         : initialValue;
+}
+
+/// computes the index coefficients given a specific "Order"
+/// row-major order
+template <typename size_type, std::size_t Dimensions, array_order Order>
+enable_if_t<
+    Order == array_order::ROW_MAJOR,
+    ::std::array<size_type, Dimensions>>
+computeIndexCoeffs(const ::std::array<size_type, Dimensions>& dimensionLengths) noexcept
+{
     /* doc-style comment block disabled because doxygen/doxypress can't handle it
        just copy/paste into : https://www.codecogs.com/latex/eqneditor.php
         \f[
@@ -159,26 +160,26 @@ namespace internal
             \end{cases}
         \f]
     */
-    template <typename size_type, std::size_t Dimensions, array_order Order>
-    enable_if_t<
-        Order == array_order::ROW_MAJOR,
-        ::std::array<size_type, Dimensions>>
-    computeIndexCoeffs(const ::std::array<size_type, Dimensions>& dimensionLengths) noexcept
+    ::std::array<size_type, Dimensions> coeffs;
+    for (size_type i = 0; i < Dimensions; ++i)
     {
-        ::std::array<size_type, Dimensions> coeffs;
-        for (size_type i = 0 ; i < Dimensions ; ++i)
-        {
-            coeffs[i] = internal::ct_accumulate(dimensionLengths,
-                                                i + 1,
-                                                Dimensions - i - 1,
-                                                static_cast<size_type>(1),
-                                                internal::ct_prod<size_type>);
-        }
-        return coeffs;
+        coeffs[i] = internal::ct_accumulate(dimensionLengths,
+                                            i + 1,
+                                            Dimensions - i - 1,
+                                            static_cast<size_type>(1),
+                                            ct_prod<size_type>);
     }
+    return coeffs;
+}
 
-    /// computes the index coefficients given a specific "Order"
-    /// column-major order
+/// computes the index coefficients given a specific "Order"
+/// column-major order
+template <typename size_type, std::size_t Dimensions, array_order Order>
+enable_if_t<
+    Order == array_order::COLUMN_MAJOR,
+    ::std::array<size_type, Dimensions>>
+computeIndexCoeffs(const ::std::array<size_type, Dimensions>& dimensionLengths) noexcept
+{
     /* doc-style comment block disabled because doxygen/doxypress can't handle it
        just copy/paste into : https://www.codecogs.com/latex/eqneditor.php
         \f[
@@ -193,35 +194,27 @@ namespace internal
             \end{cases}
         \f]
     */
-    template <typename size_type, std::size_t Dimensions, array_order Order>
-    enable_if_t<
-        Order == array_order::COLUMN_MAJOR,
-        ::std::array<size_type, Dimensions>>
-    computeIndexCoeffs(const ::std::array<size_type, Dimensions>& dimensionLengths) noexcept
+    ::std::array<size_type, Dimensions> coeffs;
+    for (size_type i = 0; i < Dimensions; ++i)
     {
-        ::std::array<size_type, Dimensions> coeffs;
-        for (size_type i = 0 ; i < Dimensions ; ++i)
-        {
-            coeffs[i] = internal::ct_accumulate(dimensionLengths,
-                                                0,
-                                                i,
-                                                static_cast<size_type>(1),
-                                                internal::ct_prod<size_type>);
-        }
-        return coeffs;
+        coeffs[i] = internal::ct_accumulate(dimensionLengths,
+                                            0,
+                                            i,
+                                            static_cast<size_type>(1),
+                                            ct_prod<size_type>);
     }
+    return coeffs;
+}
 
 }
 // </editor-fold>
 
 /// A multi-dimensional array
 /// Inspired by [orca_array](https://github.com/astrobiology/orca_array)
-template
-<
-    typename    ValueType,   ///< elements' type
-    std::size_t Dimensions,  ///< number of dimensions
-    /// the convention for arranging the elements in the underlying array
-    array_order Order = array_order::ROW_MAJOR
+template <
+    typename    ValueType,                      ///< elements' type
+    std::size_t Dimensions,                     ///< number of dimensions
+    array_order Order = array_order::ROW_MAJOR  /// storage order
 >
 class array
 {
@@ -232,10 +225,10 @@ public:
     // <editor-fold defaultstate="collapsed" desc="STL-like types">
     // from <array>
     using value_type             = ValueType;
-    // using pointer                = value_type*;
-    // using const_pointer          = const value_type*;
-    // using reference              = value_type&;
-    // using const_reference        = const value_type&;
+    using pointer                = value_type*;
+    using const_pointer          = const value_type*;
+    using reference              = value_type&;
+    using const_reference        = const value_type&;
     using iterator               = value_type*;
     using const_iterator         = const value_type*;
     using size_type              = std::size_t;
@@ -298,18 +291,17 @@ public:
     {}
 
     /// the usual way of constructing hyper arrays
-    template
-    <
+    template <
         typename... DimensionLengths,
         typename = internal::enable_if_t<
-            sizeof...(DimensionLengths) == Dimensions
-            && internal::are_integral<DimensionLengths...>::value>
+            (sizeof...(DimensionLengths) == Dimensions) && internal::are_integral<DimensionLengths...>::value,
+            void>
     >
     array(DimensionLengths... dimensionLengths)
-        : _lengths   {{static_cast<size_type>(dimensionLengths)...}}
-          , _coeffs    (internal::computeIndexCoeffs<size_type, Dimensions, Order>(_lengths))
-          , _size      (computeDataSize(_lengths))
-          , _dataOwner {allocateData(_size)}
+    : _lengths   {{static_cast<size_type>(dimensionLengths)...}}
+    , _coeffs    (internal::computeIndexCoeffs<size_type, Dimensions, Order>(_lengths))
+    , _size      (computeDataSize(_lengths))
+    , _dataOwner {allocateData(_size)}
     {}
 
     /// Creates a new hyper array from "raw data"
@@ -320,7 +312,7 @@ public:
           value_type* rawData = nullptr  ///< raw data
                                          ///< must contain `computeIndexCoeffs(lengths)`
                                          ///< if `nullptr`, a new data array will be allocated
-         )
+    )
     : _lengths   (std::move(lengths))
     , _coeffs    (internal::computeIndexCoeffs<size_type, Dimensions, Order>(lengths))
     , _size      (computeDataSize(_lengths))
@@ -339,8 +331,10 @@ public:
     {
         if (values.size() <= size())
         {
-            std::copy(values.begin(), values.end(),
+            std::copy(values.begin(),
+                      values.end(),
                       _dataOwner.get());
+
             // fill any remaining number of uninitialized elements with the default value
             if (values.size() < size())
             {
@@ -407,10 +401,6 @@ public:
     size_type length(const size_type dimensionIndex) const
     {
         assert(dimensionIndex < Dimensions);
-        //if (dimensionIndex >= Dimensions)
-        //{
-        //    throw std::out_of_range("The dimension index must be within [0, Dimensions-1]");
-        //}
 
         return _lengths[dimensionIndex];
     }
@@ -425,10 +415,6 @@ public:
     size_type coeff(const size_type coeffIndex) const
     {
         assert(coeffIndex < Dimensions);
-        //if (coeffIndex >= Dimensions)
-        //{
-        //    throw std::out_of_range("The coefficient index must be within [0, Dimensions-1]");
-        //}
 
         return _coeffs[coeffIndex];
     }
@@ -476,22 +462,22 @@ public:
     ///     arr.at(3, 1, 4) = 3.14;
     /// @endcode
     template <typename... Indices>
-    internal::enable_if_t<sizeof...(Indices) == Dimensions
-                          && internal::are_integral<Indices...>::value,
-                          value_type&>
+    internal::enable_if_t<
+        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
+        value_type&>
     at(Indices... indices)
     {
-        return _dataOwner[rawIndex(indices...)];
+        return _dataOwner[rawIndex_checkBounds(indices...)];
     }
 
     /// `const` version of at()
     template <typename... Indices>
-    internal::enable_if_t<sizeof...(Indices) == Dimensions
-                          && internal::are_integral<Indices...>::value,
-                          const value_type&>
+    internal::enable_if_t<
+        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
+        const value_type&>
     at(Indices... indices) const
     {
-        return _dataOwner[rawIndex(indices...)];
+        return _dataOwner[rawIndex_checkBounds(indices...)];
     }
 
     /// Unchecked version of at()
@@ -501,9 +487,9 @@ public:
     ///     arr(3, 1, 4) = 3.14;
     /// @endcode
     template <typename... Indices>
-    internal::enable_if_t<sizeof...(Indices) == Dimensions
-                          && internal::are_integral<Indices...>::value,
-                          value_type&>
+    internal::enable_if_t<
+        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
+        value_type&>
     operator()(Indices... indices)
     {
         return _dataOwner[rawIndex_noChecks({{static_cast<index_type>(indices)...}})];
@@ -511,35 +497,35 @@ public:
 
     /// `const` version of operator()
     template <typename... Indices>
-    internal::enable_if_t<sizeof...(Indices) == Dimensions
-                          && internal::are_integral<Indices...>::value,
-                          const value_type&>
+    internal::enable_if_t<
+        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
+        const value_type&>
     operator()(Indices... indices) const
     {
         return _dataOwner[rawIndex_noChecks({{static_cast<index_type>(indices)...}})];
     }
 
-    /// Returns the actual index of the element in the data array
+    /// returns the actual index of the element in the data array
     /// Usage:
     /// @code
     ///     hyper_array::array<int, 3> arr(4, 5, 6);
     ///     assert(&arr.at(3, 1, 4) == &arr.data()[arr.rawIndex(3, 1, 4)]);
     /// @endcode
     template <typename... Indices>
-    internal::enable_if_t<sizeof...(Indices) == Dimensions
-                          && internal::are_integral<Indices...>::value,
-                          index_type>
+    internal::enable_if_t<
+        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
+        index_type>
     rawIndex(Indices... indices) const
     {
-        return rawIndex_noChecks(validateIndexRanges(indices...));
+        return rawIndex_checkBounds(indices...);
     }
 
 private:
 
     template <typename... Indices>
-    internal::enable_if_t<sizeof...(Indices) == Dimensions
-                          && internal::are_integral<Indices...>::value,
-                          ::std::array<index_type, Dimensions>>
+    internal::enable_if_t<
+        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
+        ::std::array<index_type, Dimensions>>
     validateIndexRanges(Indices... indices) const
     {
         ::std::array<index_type, Dimensions> indexArray = {{static_cast<index_type>(indices)...}};
@@ -569,6 +555,15 @@ private:
         //}
     }
 
+    template <typename... Indices>
+    internal::enable_if_t<
+        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
+        index_type>
+    rawIndex_checkBounds(Indices... indices) const
+    {
+        return rawIndex_noChecks(validateIndexRanges(indices...));
+    }
+
     constexpr
     index_type
     rawIndex_noChecks(const ::std::array<index_type, Dimensions>& indexArray) const noexcept
@@ -580,7 +575,7 @@ private:
            I_{actual} &: \text{actual index of the data in the data array} \\
            N          &: \text{Dimensions}                                 \\
            C_i        &: \text{\_coeffs[i]}                                \\
-           I_i        &: \text{indexArray[i]}                              \\
+           I_i        &: \text{indexArray[i]}
            \end{cases}
         */
         return internal::ct_inner_product(_coeffs, 0,
@@ -595,11 +590,9 @@ private:
     static
     constexpr
     size_type
-    computeDataSize(const ::std::array<size_type,
-                                       Dimensions>& lengths  ///< lengths of each dimension
-                   ) noexcept
+    computeDataSize(const ::std::array<size_type, Dimensions>& dimensionLengths) noexcept
     {
-        return internal::ct_accumulate(lengths,
+        return internal::ct_accumulate(dimensionLengths,
                                        0,
                                        Dimensions,
                                        static_cast<size_type>(1),
@@ -607,13 +600,13 @@ private:
     }
 
     static
-    std::unique_ptr<value_type[]> allocateData(const size_type dataSize)
+    std::unique_ptr<value_type[]> allocateData(const size_type elementCount)
     {
         #if (__cplusplus < 201402L)  // C++14 ?
-        return std::unique_ptr<value_type[]>{new value_type[dataSize]};
+        return std::unique_ptr<value_type[]>{new value_type[elementCount]};
         #else
         // std::make_unique() is not part of C++11
-        return std::make_unique<value_type[]>(dataSize);
+        return std::make_unique<value_type[]>(elementCount);
         #endif
 
     }
@@ -628,7 +621,6 @@ private:
                   _dataOwner.get() + size(),
                   dataOwner.get());
 
-        //
         return dataOwner;
     }
 
@@ -665,22 +657,21 @@ namespace hyper_array
 {
 namespace internal
 {
-namespace io
+
+/// efficient way for doing:
+/// @code
+///     for (auto& x : container) {
+///         out << x << separator;
+///     }
+/// @endcode
+template <typename ContainerType>
+inline void copyToStream(ContainerType&& container, std::ostream& out, const char separator[] = " ")
 {
-    /// efficient way for doing:
-    /// @code
-    ///     for (auto& x : container) {
-    ///         out << x << separator;
-    ///     }
-    /// @endcode
-    template <typename ContainerType>
-    inline
-    void copyToStream(ContainerType&& container, std::ostream& out, const char separator[] = " ")
-    {
-        std::copy(container.begin(), container.end(),
-                  std::ostream_iterator<decltype(*container.begin())>(out, separator));
-    }
+    std::copy(container.begin(),
+              container.end(),
+              std::ostream_iterator<decltype(*container.begin())>(out, separator));
 }
+
 }
 }
 
@@ -691,17 +682,16 @@ namespace io
 ///     [dimensions: 2 ][order: ROW_MAJOR ][lengths: 3 4 ][coeffs: 4 1 ][size: 12 ][data: 1 2 3 4 5 6 7 8 9 10 11 12 ]
 /// @endcode
 template <typename ValueType, size_t Dimensions, hyper_array::array_order Order>
-inline
-std::ostream& operator<<(std::ostream& out,
-                         const hyper_array::array<ValueType, Dimensions, Order>& ha)
+inline std::ostream& operator<<(std::ostream& out,
+                                const hyper_array::array<ValueType, Dimensions, Order>& ha)
 {
-    using hyper_array::internal::io::copyToStream;
+    using hyper_array::internal::copyToStream;
 
-    out << "[dimensions: " << ha.dimensions()                << " ]";
-    out << "[order: "      << ha.order()                     << " ]";
+    out << "[dimensions: " << ha.dimensions()                 << " ]";
+    out << "[order: "      << ha.order()                      << " ]";
     out << "[lengths: "     ; copyToStream(ha.lengths(), out) ; out << "]";
     out << "[coeffs: "      ; copyToStream(ha.coeffs(), out)  ; out << "]";
-    out << "[size: "       << ha.size()                      << " ]";
+    out << "[size: "       << ha.size()                       << " ]";
     out << "[data: "        ; copyToStream(ha, out)           ; out << "]";
 
     return out;
