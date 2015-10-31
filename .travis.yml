@@ -11,7 +11,6 @@ before_install:
 install:
 
 script:
-  - cd _build/cmake_build && $CMAKE3 ..
-  - cd _build/cmake_build && $CMAKE3 --build .
+  - cd _build/cmake_build && $CMAKE3 ../.. && $CMAKE3 --build .
 
 
