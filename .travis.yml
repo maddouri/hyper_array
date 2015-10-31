@@ -22,15 +22,24 @@ addons:
     sources:
       - ubuntu-toolchain-r-test
     packages:
+      - gcc-4.8
       - g++-4.8
-      - clang
+      - clang-3.6
+      - lldb-3.6
+      - libc++-dev
 
 before_install:
   # install g++
-  - if [ "$CXX" = "g++" ]; then export CXX="g++-4.8" CC="gcc-4.8"; fi
+  - if [ "$CXX" = "g++" ]; then g++-4.8 --version; fi
+  - if [ "$CXX" = "g++" ]; then gcc-4.8 --version; fi
+  - if [ "$CXX" = "g++" ]; then export CXX="g++-4.8"; fi
+  - if [ "$CXX" = "g++" ]; then export CC="gcc-4.8"; fi
 
   # install clang
-  - if [ "$CXX" = "clang++" ]; then export CXX="clang++-3.6" CC="clang-3.6"; fi
+  - if [ "$CXX" = "clang++" ]; then clang++-3.6 --version; fi
+  - if [ "$CXX" = "clang++" ]; then clang-3.6 --version; fi
+  - if [ "$CXX" = "clang++" ]; then export CXX="clang++-3.6"; fi
+  - if [ "$CXX" = "clang++" ]; then export CC="clang-3.6"; fi
 
 install:
   # cmake 3
