@@ -6,6 +6,21 @@
 
 `hyper_array` is header-only, contained in a single file -- [`hyper_array.hpp`](include/hyper_array/hyper_array.hpp) -- and doesn't depend on external libraries. Its only requirement is a C++11-compliant compiler.
 
+<!--
+grep -e '^#\+' README.md | sed 's/#\{3\}/    */' | sed 's/#\{2\}/  */' | sed 's/#\{1\}/*/' | sed 's/^\([^A-Za-z]\+\)\(.\+\)$/\1[\2](#\2)/'
+-->
+
+  * [Basics](#basics)
+    * [Main Class](#main-class)
+    * [Array Order](#array-order)
+    * [Construction](#construction)
+    * [Assignment](#assignment)
+    * [Element Access](#element-access)
+    * [Standard Library Compatibility](#standard-library-compatibility)
+  * [Development](#development)
+
+
+
 ## Basics
 
 ### Main Class
