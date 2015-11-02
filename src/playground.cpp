@@ -83,7 +83,7 @@ int main()
         ha_type bb{aa.length(0)};
         ha_type cc(2);
 
-        for(typename ha_type::index_type i = 0; i < elementCount; ++i)
+        for(ha_type::index_type i = 0; i < elementCount; ++i)
         {
             aa[i] = static_cast<double>(elementCount * i);
         }
