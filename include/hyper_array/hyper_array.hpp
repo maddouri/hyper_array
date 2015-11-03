@@ -17,6 +17,7 @@
 //#include <algorithm>       // during dev. replaced by compile-time equivalents in hyper_array::internal
 #include <array>             // std::array for hyper_array::array::dimensionLengths and indexCoeffs
 #include <cassert>           // assert()
+#include <cstddef>           // ptrdiff_t
 #include <initializer_list>  // std::initializer_list for the constructors
 #include <memory>            // std::unique_ptr for hyper_array::array::_dataOwner
 #include <sstream>           // stringstream in hyper_array::array::validateIndexRanges()
@@ -243,7 +244,7 @@ public:
 
     index(std::initializer_list<value_type> indices)
     : _indices{indices}
-    {};
+    {}
 
     template <
     typename... Indices,
