@@ -209,6 +209,74 @@ computeIndexCoeffs(const ::std::array<size_type, Dimensions>& dimensionLengths) 
 }
 // </editor-fold>
 
+/// A multi-dimensional index -- i.e. a "Dimensions"-tuple of scalar indices
+/// inspired by [Multidimensional bounds, offset and array_view, revision 7](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2015/n4512.html)
+template <std::size_t Dimensions>
+class index
+{
+public:
+    // types
+    using reference       = ptrdiff_t&;
+    using const_reference = const ptrdiff_t&;
+    using size_type       = std::size_t;
+    using value_type      = ptrdiff_t;
+
+    using iterator               = value_type*;
+    using const_iterator         = const value_type*;
+    using reverse_iterator       = std::reverse_iterator<iterator>;
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
+private:
+    /// the "Dimensions"-tuple of indices
+    ::std::array<value_type, Dimensions> _indices;
+
+public:
+
+    // ctors
+    index()
+    : _indices{[](){
+        ::std::array<value_type, Dimensions> indices;
+        indices.fill(0);
+        return indices;
+    }()}
+    {}
+
+    index(std::initializer_list<value_type> indices)
+    : _indices{indices}
+    {};
+
+    template <
+    typename... Indices,
+    typename = internal::enable_if_t<
+        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
+        void>
+    >
+    index(Indices... indices)
+    : _indices{{static_cast<value_type>(indices)...}}
+    {}
+
+    /// returns the number of dimensions associated with this index
+    static constexpr size_type dimensions() { return Dimensions; }
+
+    // accessors, return the i'th index
+          value_type& operator[](size_type i)       { return _indices[i]; }
+    const value_type& operator[](size_type i) const { return _indices[i]; }
+
+    // iterators
+          iterator         begin()         noexcept { return _indices.begin();   }
+    const_iterator         begin()   const noexcept { return _indices.begin();   }
+          iterator         end()           noexcept { return _indices.end();     }
+    const_iterator         end()     const noexcept { return _indices.end();     }
+          reverse_iterator rbegin()        noexcept { return _indices.rbegin();  }
+    const_reverse_iterator rbegin()  const noexcept { return _indices.rbegin();  }
+          reverse_iterator rend()          noexcept { return _indices.rend();    }
+    const_reverse_iterator rend()    const noexcept { return _indices.rend();    }
+    const_iterator         cbegin()  const noexcept { return _indices.cbegin();  }
+    const_iterator         cend()    const noexcept { return _indices.cend();    }
+    const_reverse_iterator crbegin() const noexcept { return _indices.crbegin(); }
+    const_reverse_iterator crend()   const noexcept { return _indices.crend();   }
+};
+
 /// A multi-dimensional array
 /// Inspired by [orca_array](https://github.com/astrobiology/orca_array)
 template <
@@ -229,10 +297,10 @@ public:
     using const_pointer          = const value_type*;
     using reference              = value_type&;
     using const_reference        = const value_type&;
-    using iterator               = value_type*;
-    using const_iterator         = const value_type*;
     using size_type              = std::size_t;
     using difference_type        = std::ptrdiff_t;
+    using iterator               = value_type*;
+    using const_iterator         = const value_type*;
     using reverse_iterator       = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     // others
@@ -665,7 +733,8 @@ namespace internal
 ///     }
 /// @endcode
 template <typename ContainerType>
-inline void copyToStream(ContainerType&& container, std::ostream& out, const char separator[] = " ")
+inline
+void copyToStream(ContainerType&& container, std::ostream& out, const char separator[] = " ")
 {
     std::copy(container.begin(),
               container.end(),
@@ -675,6 +744,16 @@ inline void copyToStream(ContainerType&& container, std::ostream& out, const cha
 }
 }
 
+/// pretty printing of index tuple
+template <size_t Dimensions>
+inline
+std::ostream& operator<<(std::ostream& out,
+                         const hyper_array::index<Dimensions>& idx)
+{
+    out << "( "; copyToStream(idx, out); out << ")";
+    return out;
+}
+
 /// Pretty printing of hyper arrays to the standard library's streams
 ///
 /// Should print something like
@@ -682,8 +761,9 @@ inline void copyToStream(ContainerType&& container, std::ostream& out, const cha
 ///     [dimensions: 2 ][order: ROW_MAJOR ][lengths: 3 4 ][coeffs: 4 1 ][size: 12 ][data: 1 2 3 4 5 6 7 8 9 10 11 12 ]
 /// @endcode
 template <typename ValueType, size_t Dimensions, hyper_array::array_order Order>
-inline std::ostream& operator<<(std::ostream& out,
-                                const hyper_array::array<ValueType, Dimensions, Order>& ha)
+inline
+std::ostream& operator<<(std::ostream& out,
+                         const hyper_array::array<ValueType, Dimensions, Order>& ha)
 {
     using hyper_array::internal::copyToStream;
 
