@@ -214,12 +214,18 @@ int main()
 
         using namespace hyper_array;
         constexpr size_t dims = 3;
-        index<dims> idx_min{1, 2, 3};
+        index<dims> idx_min(1, 2, 3);
         index<dims> idx_max{11, 22, 33};
         bounds<dims> bnd{idx_min, idx_max};
+        bounds<dims> bnd3{
+            {-11,-1},
+            {-22,-2},
+            {-33,-3}
+        };
         print(idx_min);
         print(idx_max);
         print(bnd);
+        print(bnd3);
     }
 
 

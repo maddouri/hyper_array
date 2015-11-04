@@ -243,7 +243,12 @@ public:
     {}
 
 //    index(std::initializer_list<value_type> indices)
-//    : _indices{indices}
+//    : _indices([&indices](){
+//        assert(indices.size() == Dimensions);
+//        ::std::array<value_type, Dimensions> idxs;
+//        std::copy(indices.begin(), indices.end(), idxs.begin());
+//        return idxs;
+//    }())
 //    {}
 
     template <
@@ -290,9 +295,6 @@ public:
         using value_type = typename index<Dimensions>::value_type;
         value_type min;
         value_type max;
-    //    pair() : min{0}, max{0} {}
-    //    pair(value_type mn, value_type mx) : min{mn}, max{mx} {}
-    //    pair(std::initializer_list<value_type> il) : min{*il.begin()}, max{*(il.begin()+1)} {}
     };
     // types
     using size_type           = std::size_t;
@@ -310,7 +312,8 @@ private:
 
 public:
 
-    bounds() noexcept
+    // ctors
+    bounds()
     : _bounds([](){
         ::std::array<value_type, Dimensions> bs;
         bs.fill({});
@@ -318,12 +321,17 @@ public:
     }())
     {}
 
-//    bounds(const std::initializer_list<pair> bs)
-//    : _bounds{bs}
-//    {}
+    bounds(std::initializer_list<pair> bs)
+    : _bounds([&bs](){
+        assert(bs.size() == Dimensions);
+        ::std::array<value_type, Dimensions> bnds;
+        std::copy(bs.begin(), bs.end(), bnds.begin());
+        return bnds;
+    }())
+    {}
 
     bounds(const index<Dimensions>& lowerBound, const index<Dimensions>& upperBound)
-    : _bounds([this, &lowerBound, &upperBound]() -> ::std::array<pair, Dimensions> {
+    : _bounds([this, &lowerBound, &upperBound](){
         ::std::array<pair, Dimensions> bs;
         // zip lowerBound and upperBound into bs
         std::transform(lowerBound.begin(), lowerBound.end(),
