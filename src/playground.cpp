@@ -14,8 +14,9 @@
 using std::cout;
 using std::endl;
 
+
 // shorthand for printing a hyper_array
-#define printarr(arr) cout << #arr << ": " << arr << endl;
+#define print(arr) cout << #arr << ": " << arr << endl;
 
 // prints 2d array
 template <typename HyperArray>
@@ -70,7 +71,7 @@ int main()
             x = - c++;
         }
 
-        printarr(aa)
+        print(aa)
     }
 
     // construction, moving, assignment
@@ -88,17 +89,17 @@ int main()
             aa[i] = static_cast<double>(elementCount * i);
         }
 
-        printarr(aa)
+        print(aa)
 
         bb = std::move(aa);
         cc = bb;
         bb[0] = -3;
 
-        printarr(bb)
-        printarr(cc)
+        print(bb)
+        print(cc)
 
         const ha_type dd(cc);
-        printarr(dd)
+        print(dd)
     }
 
     // algorithms
@@ -112,11 +113,11 @@ int main()
 
         ha_type aa{lengths};
         std::iota(aa.begin(), aa.end(), 1);
-        printarr(aa)
+        print(aa)
 
         ha_type bb{aa.lengths()};
         std::copy(aa.begin(), aa.end(), bb.rbegin());
-        printarr(bb)
+        print(bb)
 
         ha_type cc{aa.lengths()};
         std::transform(aa.begin(), aa.end(),
@@ -125,7 +126,7 @@ int main()
                        [](el_type a, el_type b) {
                            return a + b;
                        });
-        printarr(cc);
+        print(cc);
     }
 
     // in containers
@@ -147,7 +148,7 @@ int main()
         {
             std::iota(ha.begin(), ha.end(), 1);
             cout << "vv[" << std::distance(&vv[0], &ha) << "] ";
-            printarr(ha)
+            print(ha)
         }
     }
 
@@ -167,7 +168,7 @@ int main()
                 dimensions,
                 hyper_array::array_order::COLUMN_MAJOR> col{lengths,
                                                             {11, 21, 12, 22, 13, 23}};
-            printarr(col);
+            print(col);
             print2d(col);
         }
         {
@@ -176,7 +177,7 @@ int main()
                 dimensions,
                 hyper_array::array_order::ROW_MAJOR> row{lengths,
                                                          {11, 12, 13, 21, 22, 23}};
-            printarr(row);
+            print(row);
             print2d(row);
         }
 
@@ -200,13 +201,25 @@ int main()
                 }
             }
 
-            printarr(col);
+            print(col);
             print2d(col);
-            printarr(row);
+            print(row);
             print2d(row);
         }
+    }
 
+    // indices, bounds
+    {
+        cout << "\nindices, bounds\n";
 
+        using namespace hyper_array;
+        constexpr size_t dims = 3;
+        index<dims> idx_min{1, 2, 3};
+        index<dims> idx_max{11, 22, 33};
+        bounds<dims> bnd{idx_min, idx_max};
+        print(idx_min);
+        print(idx_max);
+        print(bnd);
     }
 
 

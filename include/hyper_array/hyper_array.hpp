@@ -235,16 +235,16 @@ public:
 
     // ctors
     index()
-    : _indices{[](){
+    : _indices([](){
         ::std::array<value_type, Dimensions> indices;
         indices.fill(0);
         return indices;
-    }()}
+    }())
     {}
 
-    index(std::initializer_list<value_type> indices)
-    : _indices{indices}
-    {}
+//    index(std::initializer_list<value_type> indices)
+//    : _indices{indices}
+//    {}
 
     template <
     typename... Indices,
@@ -278,12 +278,90 @@ public:
     const_reverse_iterator crend()   const noexcept { return _indices.crend();   }
 };
 
+/// Represents the lower and upper bounds of a multidimensional range
+/// inspired by [Multidimensional bounds, offset and array_view, revision 7](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2015/n4512.html)
+template <std::size_t Dimensions>
+class bounds
+{
+public:
+    /// represents a single dimensional [min, max] range
+    struct pair
+    {
+        using value_type = typename index<Dimensions>::value_type;
+        value_type min;
+        value_type max;
+    //    pair() : min{0}, max{0} {}
+    //    pair(value_type mn, value_type mx) : min{mn}, max{mx} {}
+    //    pair(std::initializer_list<value_type> il) : min{*il.begin()}, max{*(il.begin()+1)} {}
+    };
+    // types
+    using size_type           = std::size_t;
+    using value_type          = pair;
+//    using reference           = value_type&;
+//    using const_reference     = const pair&;
+
+    using iterator               = value_type*;
+    using const_iterator         = const value_type*;
+    using reverse_iterator       = std::reverse_iterator<iterator>;
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
+private:
+    ::std::array<value_type, Dimensions> _bounds;
+
+public:
+
+    bounds() noexcept
+    : _bounds([](){
+        ::std::array<value_type, Dimensions> bs;
+        bs.fill({});
+        return bs;
+    }())
+    {}
+
+//    bounds(const std::initializer_list<pair> bs)
+//    : _bounds{bs}
+//    {}
+
+    bounds(const index<Dimensions>& lowerBound, const index<Dimensions>& upperBound)
+    : _bounds([this, &lowerBound, &upperBound]() -> ::std::array<pair, Dimensions> {
+        ::std::array<pair, Dimensions> bs;
+        // zip lowerBound and upperBound into bs
+        std::transform(lowerBound.begin(), lowerBound.end(),
+                       upperBound.begin(),
+                       bs.begin(),
+                       [](decltype(*lowerBound.begin()) low,
+                          decltype(*upperBound.begin()) up) -> value_type {
+                           return {low, up};
+                       });
+        return bs;
+    }())
+    {}
+
+    // accessors, return the i'th range
+          value_type& operator[](size_type i)       { return _bounds[i]; }
+    const value_type& operator[](size_type i) const { return _bounds[i]; }
+
+    // iterators
+          iterator         begin()         noexcept { return _bounds.begin();   }
+    const_iterator         begin()   const noexcept { return _bounds.begin();   }
+          iterator         end()           noexcept { return _bounds.end();     }
+    const_iterator         end()     const noexcept { return _bounds.end();     }
+          reverse_iterator rbegin()        noexcept { return _bounds.rbegin();  }
+    const_reverse_iterator rbegin()  const noexcept { return _bounds.rbegin();  }
+          reverse_iterator rend()          noexcept { return _bounds.rend();    }
+    const_reverse_iterator rend()    const noexcept { return _bounds.rend();    }
+    const_iterator         cbegin()  const noexcept { return _bounds.cbegin();  }
+    const_iterator         cend()    const noexcept { return _bounds.cend();    }
+    const_reverse_iterator crbegin() const noexcept { return _bounds.crbegin(); }
+    const_reverse_iterator crend()   const noexcept { return _bounds.crend();   }
+};
+
 /// A multi-dimensional array
 /// Inspired by [orca_array](https://github.com/astrobiology/orca_array)
 template <
     typename    ValueType,                      ///< elements' type
     std::size_t Dimensions,                     ///< number of dimensions
-    array_order Order = array_order::ROW_MAJOR  /// storage order
+    array_order Order = array_order::ROW_MAJOR  ///< storage order
 >
 class array
 {
@@ -398,23 +476,18 @@ public:
     , _size      (computeDataSize(_lengths))
     , _dataOwner {allocateData(_size).release()}
     {
-        if (values.size() <= size())
-        {
-            std::copy(values.begin(),
-                      values.end(),
-                      _dataOwner.get());
+        assert(values.size() <= size());
 
-            // fill any remaining number of uninitialized elements with the default value
-            if (values.size() < size())
-            {
-                std::fill(_dataOwner.get() + values.size(),
-                          _dataOwner.get() + size(),
-                          defaultValue);
-            }
-        }
-        else
+        std::copy(values.begin(),
+                  values.end(),
+                  _dataOwner.get());
+
+        // fill any remaining number of uninitialized elements with the default value
+        if (values.size() < size())
         {
-            assert(false);
+            std::fill(_dataOwner.get() + values.size(),
+                      _dataOwner.get() + size(),
+                      defaultValue);
         }
     }
     // </editor-fold>
@@ -710,9 +783,21 @@ template<typename ValueType> using array9d = array<ValueType, 9>;
 }
 
 #if HYPER_ARRAY_CONFIG_Overload_Stream_Operator
+
+// pretty printing of a bounds' single dimensional range
+//template <size_t Dimensions>
+//inline
+//std::ostream& operator<<(std::ostream& out,
+//                         const typename hyper_array::bounds<Dimensions>::pair& p)
+//{
+//    out << "[" << p.min << ", " << p.max << "]";
+//    return out;
+//}
+
 /// pretty printing of array order to the standard library's streams
 inline
-std::ostream& operator<<(std::ostream& out, const hyper_array::array_order& o)
+std::ostream& operator<<(std::ostream& out,
+                         const hyper_array::array_order& o)
 {
     switch (o)
     {
@@ -727,7 +812,7 @@ namespace hyper_array
 namespace internal
 {
 
-/// efficient way for doing:
+/// an efficient way for doing:
 /// @code
 ///     for (auto& x : container) {
 ///         out << x << separator;
@@ -735,7 +820,9 @@ namespace internal
 /// @endcode
 template <typename ContainerType>
 inline
-void copyToStream(ContainerType&& container, std::ostream& out, const char separator[] = " ")
+void copyToStream(ContainerType&& container,
+                  std::ostream&   out,
+                  const char      separator[] = " ")
 {
     std::copy(container.begin(),
               container.end(),
@@ -745,13 +832,30 @@ void copyToStream(ContainerType&& container, std::ostream& out, const char separ
 }
 }
 
+/// pretty printing of bounds
+template <size_t Dimensions>
+inline
+std::ostream& operator<<(std::ostream& out,
+                         const hyper_array::bounds<Dimensions>& bs)
+{
+    out << "[ ";
+// hyper_array::internal::copyToStream(bs, out);
+    for (auto&& p : bs)
+    {
+//        out << p << " ";
+        out << "[" << p.min << " " << p.max << "]" << " ";
+    }
+    out << "]";
+    return out;
+}
+
 /// pretty printing of index tuple
 template <size_t Dimensions>
 inline
 std::ostream& operator<<(std::ostream& out,
                          const hyper_array::index<Dimensions>& idx)
 {
-    out << "( "; copyToStream(idx, out); out << ")";
+    out << "( "; hyper_array::internal::copyToStream(idx, out); out << ")";
     return out;
 }
 
