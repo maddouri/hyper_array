@@ -75,11 +75,11 @@ using are_integral = are_all_true<
 
 /// compile-time sum
 template <typename T>
-constexpr T ct_plus(const T x, const T y) { return x + y; }
+inline constexpr T ct_plus(const T x, const T y) { return x + y; }
 
 /// compile-time product
 template <typename T>
-constexpr T ct_prod(const T x, const T y) { return x * y; }
+inline constexpr T ct_prod(const T x, const T y) { return x * y; }
 
 /// compile-time equivalent to `std::accumulate()`
 template <
@@ -87,7 +87,7 @@ template <
     std::size_t N,  ///< length of the array
     typename    O   ///< type of the binary operation
 >
-constexpr
+inline constexpr
 T ct_accumulate(const ::std::array<T, N>& arr,  ///< accumulate from this array
                 const size_t first,             ///< starting from this position
                 const size_t length,            ///< accumulate this number of elements
@@ -116,7 +116,7 @@ template <
     typename O_SUM,  ///< summation operation's type
     typename O_PROD  ///< multiplication operation's type
 >
-constexpr
+inline constexpr
 T ct_inner_product(const ::std::array<T_1, N_1>& arr_1,  ///< calc the inner product of this array
                    const size_t  first_1,        ///< from this position
                    const ::std::array<T_2, N_2>& arr_2,  ///< with this array
@@ -142,6 +142,7 @@ T ct_inner_product(const ::std::array<T_1, N_1>& arr_1,  ///< calc the inner pro
 /// computes the index coefficients given a specific "Order"
 /// row-major order
 template <typename size_type, std::size_t Dimensions, array_order Order>
+inline
 enable_if_t<
     Order == array_order::ROW_MAJOR,
     ::std::array<size_type, Dimensions>>
@@ -176,6 +177,7 @@ computeIndexCoeffs(const ::std::array<size_type, Dimensions>& dimensionLengths) 
 /// computes the index coefficients given a specific "Order"
 /// column-major order
 template <typename size_type, std::size_t Dimensions, array_order Order>
+inline
 enable_if_t<
     Order == array_order::COLUMN_MAJOR,
     ::std::array<size_type, Dimensions>>
@@ -205,6 +207,32 @@ computeIndexCoeffs(const ::std::array<size_type, Dimensions>& dimensionLengths) 
                                             ct_prod<size_type>);
     }
     return coeffs;
+}
+
+/// computes the "flat" or "linear" or "1D" index from the provided index tuple @p indexArray
+/// and the index coefficients @p coeffs
+template <std::size_t Dimensions, typename size_type, typename index_type>
+inline constexpr
+size_type
+flatten_index(const ::std::array<index_type, Dimensions>& indexArray,
+              const ::std::array<size_type, Dimensions>&  coeffs) noexcept
+{
+    /* https://www.codecogs.com/latex/eqneditor.php
+       \begin{cases}
+       I_{actual} &= \sum_{i=0}^{N-1} {C_i \cdot I_i}                  \\
+                                                                       \\
+       I_{actual} &: \text{actual index of the data in the data array} \\
+       N          &: \text{Dimensions}                                 \\
+       C_i        &: \text{\_coeffs[i]}                                \\
+       I_i        &: \text{indexArray[i]}
+       \end{cases}
+    */
+    return internal::ct_inner_product(coeffs, 0,
+                                      indexArray, 0,
+                                      Dimensions,
+                                      static_cast<index_type>(0),
+                                      internal::ct_plus<index_type>,
+                                      internal::ct_prod<index_type>);
 }
 
 }
@@ -240,6 +268,14 @@ public:
         indices.fill(0);
         return indices;
     }())
+    {}
+
+    index(const index<Dimensions>& other)
+    : _indices(other._indices)
+    {}
+
+    index(index<Dimensions>&& other)
+    : _indices(std::move(other._indices))
     {}
 
 //    index(std::initializer_list<value_type> indices)
@@ -362,6 +398,34 @@ public:
     const_iterator         cend()    const noexcept { return _bounds.cend();    }
     const_reverse_iterator crbegin() const noexcept { return _bounds.crbegin(); }
     const_reverse_iterator crend()   const noexcept { return _bounds.crend();   }
+};
+
+/// Iterates over the elements of a hyper array that are comprised within the limits
+/// defined by a `bounds<Dimensions>`
+template <
+    typename    ValueType,                      ///< elements' type
+    std::size_t Dimensions,                     ///< number of dimensions
+    array_order Order = array_order::ROW_MAJOR  ///< storage order
+>
+class iterator
+{
+public:
+    using size_type  = std::size_t;
+    using value_type = ValueType;
+
+public:
+    index<Dimensions> _begin;
+    index<Dimensions> _cursor;
+    index<Dimensions> _end;
+
+public:
+    iterator(const index<Dimensions>& begin_,
+             const index<Dimensions>& end_)
+    : _begin{begin_}
+    , _cursor{_begin}
+    , _end{end_}
+    {}
+
 };
 
 /// A multi-dimensional array
@@ -642,7 +706,10 @@ public:
         value_type&>
     operator()(Indices... indices)
     {
-        return _dataOwner[rawIndex_noChecks({{static_cast<index_type>(indices)...}})];
+        return _dataOwner[internal::flatten_index<Dimensions,
+                                                  size_type,
+                                                  index_type>({{static_cast<index_type>(indices)...}},
+                                                              _coeffs)];
     }
 
     /// `const` version of operator()
@@ -652,7 +719,10 @@ public:
         const value_type&>
     operator()(Indices... indices) const
     {
-        return _dataOwner[rawIndex_noChecks({{static_cast<index_type>(indices)...}})];
+        return _dataOwner[internal::flatten_index<Dimensions,
+                                                  size_type,
+                                                  index_type>({{static_cast<index_type>(indices)...}},
+                                                              _coeffs)];
     }
 
     /// returns the actual index of the element in the data array
@@ -711,29 +781,7 @@ private:
         index_type>
     rawIndex_checkBounds(Indices... indices) const
     {
-        return rawIndex_noChecks(validateIndexRanges(indices...));
-    }
-
-    constexpr
-    index_type
-    rawIndex_noChecks(const ::std::array<index_type, Dimensions>& indexArray) const noexcept
-    {
-        /* https://www.codecogs.com/latex/eqneditor.php
-           \begin{cases}
-           I_{actual} &= \sum_{i=0}^{N-1} {C_i \cdot I_i}                  \\
-                                                                           \\
-           I_{actual} &: \text{actual index of the data in the data array} \\
-           N          &: \text{Dimensions}                                 \\
-           C_i        &: \text{\_coeffs[i]}                                \\
-           I_i        &: \text{indexArray[i]}
-           \end{cases}
-        */
-        return internal::ct_inner_product(_coeffs, 0,
-                                          indexArray, 0,
-                                          Dimensions,
-                                          static_cast<index_type>(0),
-                                          internal::ct_plus<index_type>,
-                                          internal::ct_prod<index_type>);
+        return internal::flatten_index(validateIndexRanges(indices...), _coeffs);
     }
 
     /// computes the total number of elements in a data array
@@ -852,6 +900,25 @@ std::ostream& operator<<(std::ostream& out,
     {
 //        out << p << " ";
         out << "[" << p.min << " " << p.max << "]" << " ";
+    }
+    out << "]";
+    return out;
+}
+
+/// (not so) pretty printing of iterator
+template <
+    typename    ValueType,
+    std::size_t Dimensions,
+    hyper_array::array_order Order
+>
+inline
+std::ostream& operator<<(std::ostream& out,
+                         const hyper_array::iterator<ValueType, Dimensions, Order>& it)
+{
+    out << "[ ";
+    for (size_t i = 0; i < Dimensions; ++i)
+    {
+        out << "[" << it._begin[i] << " " << it._cursor[i] << " " << it._end[i] << "] ";
     }
     out << "]";
     return out;

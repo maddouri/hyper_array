@@ -208,7 +208,7 @@ int main()
         }
     }
 
-    // indices, bounds
+    // indices, bounds, iterator
     {
         cout << "\nindices, bounds\n";
 
@@ -226,6 +226,9 @@ int main()
         print(idx_max);
         print(bnd);
         print(bnd3);
+
+        iterator<double, dims, array_order::ROW_MAJOR> it{idx_min, idx_max};
+        print(it);
     }
 
 
