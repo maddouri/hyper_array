@@ -882,15 +882,34 @@ public:
     {}
 
     // RandomAccessIterator interface
+    // http://www.cplusplus.com/reference/iterator/RandomAccessIterator/
+    // https://allthingscomputation.wordpress.com/2013/10/02/an-example-of-a-random-access-iterator-in-c11/
+    // http://zotu.blogspot.fr/2010/01/creating-random-access-iterator.html
     // dereferencing
     ValueType& operator*()  const { return (*_array)[internal::flatten_index(_cursor._indices, _array->coeffs())]; }
     ValueType& operator->() const { return (*_array)[internal::flatten_index(_cursor._indices, _array->coeffs())]; }
-    // prefix
+    // prefix inc/dec
     this_type& operator++() { advance_cursor( 1); return *this; }
     this_type& operator--() { advance_cursor(-1); return *this; }
-    // postfix
+    // postfix inc/dec
     this_type operator++(const int) { auto prev = *this; advance_cursor( 1); return prev; }
     this_type operator--(const int) { auto prev = *this; advance_cursor(-1); return prev; }
+    // compound assignment
+    this_type& operator+=(const ptrdiff_t d) { return advance_cursor(d); }
+    this_type& operator-=(const ptrdiff_t d) { return advance_cursor(d); }
+    // arithmetic operators
+    this_type operator+(const this_type& other)
+    {
+        this_type result;
+        result.advance_cursor(cursor_distance_to_origin() + other.cursor_distance_to_origin());
+        return result;
+    }
+    this_type operator-(const this_type& other)
+    {
+        this_type result;
+        result.advance_cursor(cursor_distance_to_origin() - other.cursor_distance_to_origin());
+        return result;
+    }
     // assignment
     this_type& operator=(const this_type& other)
     {
@@ -899,6 +918,8 @@ public:
         _cursor    = other._cursor;
         _end       = other._end;
         _flatRange = other._flatRange;
+
+        return *this;
     }
     // comparison
     // @todo a better implementation
@@ -909,10 +930,11 @@ public:
     bool operator> (const this_type& other) const { return _cursor >  other._cursor; }
     bool operator>=(const this_type& other) const { return _cursor >= other._cursor; }
 
-    void advance_cursor(const difference_type distance_)
+    this_type& advance_cursor(const difference_type distance_)
     {
         const ptrdiff_t distance_to_origin = cursor_distance_to_origin() + distance_;
         advance_cursor_dispatch(array_order_tag<Order>{}, distance_to_origin);
+        return *this;
     }
 
 private:
