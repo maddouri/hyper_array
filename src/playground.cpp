@@ -215,7 +215,7 @@ int main()
         using namespace hyper_array;
         constexpr size_t dims = 3;
         index<dims> idx_min(1, 2, 3);
-        index<dims> idx_max{11, 22, 33};
+        index<dims> idx_max{3, 5, 6};
         bounds<dims> bnd{idx_min, idx_max};
         bounds<dims> bnd3{
             {-11,-1},
@@ -227,8 +227,26 @@ int main()
         print(bnd);
         print(bnd3);
 
-        iterator<double, dims, array_order::ROW_MAJOR> it{idx_min, idx_max};
-        print(it);
+        {
+            iterator<double, dims, array_order::ROW_MAJOR> it{idx_min, idx_max};
+            print(it);
+
+            while (it._cursor != it._end)
+            {
+                ++it;
+                print(it);
+            }
+        }
+        {
+            iterator<double, dims, array_order::COLUMN_MAJOR> it{idx_min, idx_max};
+            print(it);
+
+            while (it._cursor != it._end)
+            {
+                ++it;
+                print(it);
+            }
+        }
     }
 
 

@@ -317,6 +317,24 @@ public:
     const_iterator         cend()    const noexcept { return _indices.cend();    }
     const_reverse_iterator crbegin() const noexcept { return _indices.crbegin(); }
     const_reverse_iterator crend()   const noexcept { return _indices.crend();   }
+
+    // operator overloading
+
+    index<Dimensions>& operator=(const index<Dimensions>& other)
+    {
+        std::copy(other._indices.begin(), other._indices.end(), _indices.begin());
+        return *this;
+    }
+
+    bool operator==(const index<Dimensions>& other) const
+    {
+        return _indices == other._indices;
+    }
+
+    bool operator!=(const index<Dimensions>& other) const
+    {
+        return _indices != other._indices;
+    }
 };
 
 /// Represents the lower and upper bounds of a multidimensional range
@@ -412,6 +430,10 @@ class iterator
 public:
     using size_type  = std::size_t;
     using value_type = ValueType;
+    using index_type = ptrdiff_t;
+
+private:
+    template <array_order O> struct array_order_tag {};
 
 public:
     index<Dimensions> _begin;
@@ -425,6 +447,48 @@ public:
     , _cursor{_begin}
     , _end{end_}
     {}
+
+    const iterator& operator++()
+    {
+        increment_cursor(array_order_tag<Order>{});
+        return *this;
+    }
+
+private:
+
+    void increment_cursor(const array_order_tag<array_order::COLUMN_MAJOR>& tag,
+                          const index_type idx = 0)
+    {
+        if (idx >= Dimensions)
+        {
+            _cursor = _end;
+            return;
+        }
+
+        ++(_cursor[idx]);
+        if (_cursor[idx] >= _end[idx])
+        {
+            _cursor[idx] = _begin[idx];
+            increment_cursor(tag, idx + 1);
+        }
+    }
+
+    void increment_cursor(const array_order_tag<array_order::ROW_MAJOR>& tag,
+                          const index_type idx = Dimensions - 1)
+    {
+        if (idx < 0)
+        {
+            _cursor = _end;
+            return;
+        }
+
+        ++(_cursor[idx]);
+        if (_cursor[idx] >= _end[idx])
+        {
+            _cursor[idx] = _begin[idx];
+            increment_cursor(tag, idx - 1);
+        }
+    }
 
 };
 
