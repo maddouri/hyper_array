@@ -235,6 +235,21 @@ flatten_index(const ::std::array<index_type, Dimensions>& indexArray,
                                       internal::ct_prod<index_type>);
 }
 
+template <std::size_t Dimensions, typename Iterable>
+ptrdiff_t compute_flat_range(const Iterable& begin_, const Iterable& end_)
+{
+    // compute the range of each dimension
+    ::std::array<ptrdiff_t, Dimensions> ranges;
+    std::transform(end_.begin(), end_.end(),
+                   begin_.begin(),
+                   ranges.begin(),
+                   std::minus<ptrdiff_t>());
+    // the "flat range" is the product of the sub ranges
+    return std::accumulate(ranges.begin(), ranges.end(),
+                           static_cast<ptrdiff_t>(1),
+                           std::multiplies<ptrdiff_t>());
+}
+
 }
 // </editor-fold>
 
@@ -255,7 +270,7 @@ public:
     using reverse_iterator       = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
-private:
+public:
     /// the "Dimensions"-tuple of indices
     ::std::array<value_type, Dimensions> _indices;
 
@@ -326,15 +341,12 @@ public:
         return *this;
     }
 
-    bool operator==(const index<Dimensions>& other) const
-    {
-        return _indices == other._indices;
-    }
-
-    bool operator!=(const index<Dimensions>& other) const
-    {
-        return _indices != other._indices;
-    }
+    bool operator==(const index<Dimensions>& other) const { return _indices == other._indices; }
+    bool operator!=(const index<Dimensions>& other) const { return _indices != other._indices; }
+    bool operator< (const index<Dimensions>& other) const { return _indices <  other._indices; }
+    bool operator<=(const index<Dimensions>& other) const { return _indices <= other._indices; }
+    bool operator> (const index<Dimensions>& other) const { return _indices >  other._indices; }
+    bool operator>=(const index<Dimensions>& other) const { return _indices >= other._indices; }
 };
 
 /// Represents the lower and upper bounds of a multidimensional range
@@ -416,80 +428,6 @@ public:
     const_iterator         cend()    const noexcept { return _bounds.cend();    }
     const_reverse_iterator crbegin() const noexcept { return _bounds.crbegin(); }
     const_reverse_iterator crend()   const noexcept { return _bounds.crend();   }
-};
-
-/// Iterates over the elements of a hyper array that are comprised within the limits
-/// defined by a `bounds<Dimensions>`
-template <
-    typename    ValueType,                      ///< elements' type
-    std::size_t Dimensions,                     ///< number of dimensions
-    array_order Order = array_order::ROW_MAJOR  ///< storage order
->
-class iterator
-{
-public:
-    using size_type  = std::size_t;
-    using value_type = ValueType;
-    using index_type = ptrdiff_t;
-
-private:
-    template <array_order O> struct array_order_tag {};
-
-public:
-    index<Dimensions> _begin;
-    index<Dimensions> _cursor;
-    index<Dimensions> _end;
-
-public:
-    iterator(const index<Dimensions>& begin_,
-             const index<Dimensions>& end_)
-    : _begin{begin_}
-    , _cursor{_begin}
-    , _end{end_}
-    {}
-
-    const iterator& operator++()
-    {
-        increment_cursor(array_order_tag<Order>{});
-        return *this;
-    }
-
-private:
-
-    void increment_cursor(const array_order_tag<array_order::COLUMN_MAJOR>& tag,
-                          const index_type idx = 0)
-    {
-        if (idx >= Dimensions)
-        {
-            _cursor = _end;
-            return;
-        }
-
-        ++(_cursor[idx]);
-        if (_cursor[idx] >= _end[idx])
-        {
-            _cursor[idx] = _begin[idx];
-            increment_cursor(tag, idx + 1);
-        }
-    }
-
-    void increment_cursor(const array_order_tag<array_order::ROW_MAJOR>& tag,
-                          const index_type idx = Dimensions - 1)
-    {
-        if (idx < 0)
-        {
-            _cursor = _end;
-            return;
-        }
-
-        ++(_cursor[idx]);
-        if (_cursor[idx] >= _end[idx])
-        {
-            _cursor[idx] = _begin[idx];
-            increment_cursor(tag, idx - 1);
-        }
-    }
-
 };
 
 /// A multi-dimensional array
@@ -884,6 +822,234 @@ private:
                   dataOwner.get());
 
         return dataOwner;
+    }
+
+};
+
+/// Iterates over the elements of a hyper array that are comprised within the limits
+/// defined by a `bounds<Dimensions>`
+template <
+    typename    ValueType,                      ///< elements' type
+    std::size_t Dimensions,                     ///< number of dimensions
+    array_order Order = array_order::ROW_MAJOR  ///< storage order
+>
+class iterator
+{
+public:
+    using this_type       = iterator<ValueType, Dimensions, Order>;
+    using size_type       = std::size_t;
+    using value_type      = ValueType;
+    using index_type      = ptrdiff_t;
+    using difference_type = ptrdiff_t;
+
+private:
+    template <array_order O> struct array_order_tag {};
+
+public:
+
+    array<ValueType, Dimensions, Order>* _array;
+
+    index<Dimensions> _begin;
+    index<Dimensions> _cursor;
+    index<Dimensions> _end;
+    ptrdiff_t         _flatRange;
+
+public:
+
+    iterator()
+    : _array{nullptr}
+    , _begin{}
+    , _cursor{}
+    , _end{}
+    , _flatRange{}
+    {}
+
+    iterator(const this_type& other)
+    : _array{other._array}
+    , _begin{other._begin}
+    , _cursor{other._cursor}
+    , _end{other._end}
+    , _flatRange{other._flatRange}
+    {}
+
+    iterator(const index<Dimensions>& begin_,
+             const index<Dimensions>& end_)
+    : _array{nullptr}
+    , _begin{begin_}
+    , _cursor{_begin}
+    , _end{end_}
+    , _flatRange{internal::compute_flat_range<Dimensions>(_begin, _end)}
+    {}
+
+    // RandomAccessIterator interface
+    // dereferencing
+    ValueType& operator*()  const { return (*_array)[internal::flatten_index(_cursor._indices, _array->coeffs())]; }
+    ValueType& operator->() const { return (*_array)[internal::flatten_index(_cursor._indices, _array->coeffs())]; }
+    // prefix
+    this_type& operator++() { advance_cursor( 1); return *this; }
+    this_type& operator--() { advance_cursor(-1); return *this; }
+    // postfix
+    this_type operator++(const int) { auto prev = *this; advance_cursor( 1); return prev; }
+    this_type operator--(const int) { auto prev = *this; advance_cursor(-1); return prev; }
+    // assignment
+    this_type& operator=(const this_type& other)
+    {
+        _array     = other._array;
+        _begin     = other._begin;
+        _cursor    = other._cursor;
+        _end       = other._end;
+        _flatRange = other._flatRange;
+    }
+    // comparison
+    // @todo a better implementation
+    bool operator==(const this_type& other) const { return _cursor == other._cursor; }
+    bool operator!=(const this_type& other) const { return _cursor != other._cursor; }
+    bool operator< (const this_type& other) const { return _cursor <  other._cursor; }
+    bool operator<=(const this_type& other) const { return _cursor <= other._cursor; }
+    bool operator> (const this_type& other) const { return _cursor >  other._cursor; }
+    bool operator>=(const this_type& other) const { return _cursor >= other._cursor; }
+
+    void advance_cursor(const difference_type distance_)
+    {
+        const ptrdiff_t distance_to_origin = cursor_distance_to_origin() + distance_;
+        advance_cursor_dispatch(array_order_tag<Order>{}, distance_to_origin);
+    }
+
+private:
+
+    ptrdiff_t cursor_distance_to_origin() const
+    {
+        return cursor_distance_to_origin_dispatch(array_order_tag<Order>{});
+    }
+
+    ptrdiff_t cursor_distance_to_origin_dispatch(const array_order_tag<array_order::COLUMN_MAJOR>&) const
+    {
+        index<Dimensions> diff;
+        // diff = last - first
+        std::transform(_cursor.begin(), _cursor.end(),
+                       _begin.begin(),
+                       diff.begin(),
+                       std::minus<ptrdiff_t>());
+        ::std::array<ptrdiff_t, Dimensions> ranges;
+        std::transform(_end.begin(), _end.end(),
+                       _begin.begin(),
+                       ranges.begin(),
+                       std::minus<ptrdiff_t>());
+        ptrdiff_t d = 0;
+        d += diff[0];
+        for (ptrdiff_t i = 1; i < Dimensions; ++i)
+        {
+            d += diff[i] * std::accumulate(ranges.begin(), ranges.begin() + i,
+                                           static_cast<ptrdiff_t>(1),
+                                           std::multiplies<ptrdiff_t>());
+        }
+        return d;
+    }
+
+    ptrdiff_t cursor_distance_to_origin_dispatch(const array_order_tag<array_order::ROW_MAJOR>&) const
+    {
+        index<Dimensions> diff;
+        // diff = last - first
+        std::transform(_cursor.begin(), _cursor.end(),
+                       _begin.begin(),
+                       diff.begin(),
+                       std::minus<ptrdiff_t>());
+        ::std::array<ptrdiff_t, Dimensions> ranges;
+        std::transform(_end.begin(), _end.end(),
+                       _begin.begin(),
+                       ranges.begin(),
+                       std::minus<ptrdiff_t>());
+        ptrdiff_t d = 0;
+        d += diff[Dimensions - 1];
+        for (ptrdiff_t i = 1; i < Dimensions; ++i)
+        {
+            d += diff[Dimensions - 1 - i] * std::accumulate(ranges.rbegin(), ranges.rbegin() + i,
+                                                            static_cast<ptrdiff_t>(1),
+                                                            std::multiplies<ptrdiff_t>());
+        }
+        return d;
+    }
+
+    void advance_cursor_dispatch(const array_order_tag<array_order::COLUMN_MAJOR>&,
+                                 const difference_type distance_to_origin)
+    {
+        if (distance_to_origin >= _flatRange)
+        {
+            _cursor = _end;
+            return;
+        }
+
+        // basic algorithm: here for reference
+//        // range = _end - _begin
+//        ::std::array<ptrdiff_t, Dimensions> range;
+//        std::transform(_end.begin(), _end.end(),
+//                       _begin.begin(),
+//                       range.begin(),
+//                       std::minus<ptrdiff_t>());
+//
+//        // compute the offset of each "component" (the offset is the remainder)
+//        ::std::array<ptrdiff_t, Dimensions> r;  // remainder
+//        ::std::array<ptrdiff_t, Dimensions> q;  // quotient
+//        q[0] = distance_to_origin;
+//        r[0] = q[0] % range[0];
+//        for (size_t i = 1; i < Dimensions; ++i)
+//        {
+//            q[i] = q[i - 1] / range[i - 1];
+//            if (q[i] == 0)
+//            {
+//                std::fill(r.begin() + i, r.end(), 0);
+//                break;
+//            }
+//            r[i] = q[i] % range[i];
+//        }
+//
+//        // _cursor = _begin + r
+//        std::transform(_begin.begin(), _begin.end(),
+//                       r.begin(),
+//                       _cursor.begin(),
+//                       std::plus<ptrdiff_t>());
+
+        // implementation 2: simplification/refactoring of the "basic algorithm"
+        ptrdiff_t range;
+        ptrdiff_t q = distance_to_origin;
+
+        _cursor = _begin;
+        for (ptrdiff_t i = 0; i < Dimensions; ++i)
+        {
+            range = _end[i] - _begin[i];
+            _cursor[i] += q % range;
+            q /= range;
+            if (q == 0)
+            {
+                break;
+            }
+        }
+    }
+
+    void advance_cursor_dispatch(const array_order_tag<array_order::ROW_MAJOR>&,
+                                 const difference_type distance_to_origin)
+    {
+        if (distance_to_origin >= _flatRange)
+        {
+            _cursor = _end;
+            return;
+        }
+
+        // implementation 2: simplification/refactoring of the "basic algorithm"
+        ptrdiff_t range;
+        ptrdiff_t q = distance_to_origin;
+
+        _cursor = _begin;
+        for (ptrdiff_t i = Dimensions - 1; i >= 0; --i)
+        {
+            range = _end[i] - _begin[i];
+            _cursor[i] += q % range;
+            q /= range;
+            if (q == 0)
+            {
+                break;
+            }
+        }
     }
 
 };

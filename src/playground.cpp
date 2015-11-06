@@ -229,21 +229,41 @@ int main()
 
         {
             iterator<double, dims, array_order::ROW_MAJOR> it{idx_min, idx_max};
+            cout << "ROW_MAJOR:\n";
             print(it);
 
             while (it._cursor != it._end)
             {
-                ++it;
+                it++;
+                print(it);
+            }
+            cout << "go back" << endl;
+            it._cursor = it._begin;
+            it.advance_cursor(it._flatRange - 1);
+            print(it);
+            while (it._cursor != it._begin)
+            {
+                --it;
                 print(it);
             }
         }
         {
             iterator<double, dims, array_order::COLUMN_MAJOR> it{idx_min, idx_max};
+            cout << "COLUMN_MAJOR:\n";
             print(it);
 
             while (it._cursor != it._end)
             {
-                ++it;
+                it++;
+                print(it);
+            }
+            cout << "go back" << endl;
+            it._cursor = it._begin;
+            it.advance_cursor(it._flatRange - 1);
+            print(it);
+            while (it._cursor != it._begin)
+            {
+                --it;
                 print(it);
             }
         }
