@@ -238,7 +238,7 @@ int main()
             cout << it.order() << ": go forward: " << arr << "\n";
             print2d(arr);
             print(it << " " << *it);
-            while (it._cursor != it._end)
+            while (it._cursor != (it._end - 1))
             {
                 ++it;
                 print(it << " " << *it);
@@ -260,7 +260,7 @@ int main()
             cout << it.order() << ": go forward " << arr << "\n";
             print2d(arr);
             print(it << " " << *it);
-            while (it._cursor != it._end)
+            while (it._cursor != (it._end - 1))
             {
                 ++it;
                 print(it << " " << *it);

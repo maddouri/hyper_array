@@ -817,6 +817,92 @@ template <
     std::size_t Dimensions,                     ///< number of dimensions
     array_order Order = array_order::ROW_MAJOR  ///< storage order
 >
+class view
+{
+public:
+    // <editor-fold defaultstate="collapsed" desc="STL-like types">
+    // from <array>
+    using value_type             = ValueType;
+    using pointer                = value_type*;
+    using const_pointer          = const value_type*;
+    using reference              = value_type&;
+    using const_reference        = const value_type&;
+    using size_type              = std::size_t;
+    using difference_type        = std::ptrdiff_t;
+
+    using iterator               = hyper_array::iterator<value_type, Dimensions, Order>;
+    using const_iterator         = const iterator;
+    using reverse_iterator       = std::reverse_iterator<iterator>;
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+    // others
+    using array_type             = hyper_array::array<value_type, Dimensions, Order>;
+    using view_type              = hyper_array::view<value_type, Dimensions, Order>;
+    using flat_index_type        = std::size_t;
+    using hyper_index_type       = hyper_array::index<Dimensions>;
+    // </editor-fold>
+
+private:
+    value_type* _array;
+
+    hyper_index_type _begin;
+    hyper_index_type _end;   // "one past the
+
+public:
+
+    view() = delete;
+
+    view(const view_type& other)
+    : _array{other._array}
+    , _begin{other._begin}
+    , _end{other._end}
+    {}
+
+    view(view_type&& other)
+    : _array{other._array}
+    , _begin{std::move(other._begin)}
+    , _end{std::move(other._end)}
+    {}
+
+    view(array_type& array_)
+    : _array{array_.data()}
+    , _begin{0}
+    , _end{array_.lengths()}
+    {}
+
+    view(array_type& array_,
+         const hyper_index_type& begin_,
+         const hyper_index_type& end_)
+    : _array{array_.data()}
+    , _begin{begin_}
+    , _end{end_}
+    {}
+
+    view_type& operator=(const view_type& other)
+    {
+        _array = other._array;
+        _begin = other._begin;
+        _end   = other._end;
+
+        return *this;
+    }
+
+    view_type& operator=(view_type&& other)
+    {
+        _array = other._array;
+        _begin = std::move(other._begin);
+        _end   = std::move(other._end);
+
+        return *this;
+    }
+};
+
+/// A multi-dimensional array
+/// Inspired by [orca_array](https://github.com/astrobiology/orca_array)
+template <
+    typename    ValueType,                      ///< elements' type
+    std::size_t Dimensions,                     ///< number of dimensions
+    array_order Order = array_order::ROW_MAJOR  ///< storage order
+>
 class array
 {
     // Types ///////////////////////////////////////////////////////////////////////////////////////
