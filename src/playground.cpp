@@ -84,7 +84,7 @@ int main()
         ha_type bb{aa.length(0)};
         ha_type cc(2);
 
-        for(ha_type::index_type i = 0; i < elementCount; ++i)
+        for(ha_type::flat_index_type i = 0; i < elementCount; ++i)
         {
             aa[i] = static_cast<double>(elementCount * i);
         }
@@ -213,58 +213,65 @@ int main()
         cout << "\nindices, bounds\n";
 
         using namespace hyper_array;
-        constexpr size_t dims = 3;
-        index<dims> idx_min(1, 2, 3);
-        index<dims> idx_max{3, 5, 6};
-        bounds<dims> bnd{idx_min, idx_max};
-        bounds<dims> bnd3{
-            {-11,-1},
-            {-22,-2},
-            {-33,-3}
-        };
-        print(idx_min);
-        print(idx_max);
-        print(bnd);
-        print(bnd3);
+        constexpr size_t dims = 2;
+        index<dims> idx_min(0, 0);
+        //index<dims> idx_min(1, 2, 3);
+        index<dims> idx_max{2, 3};
+        //index<dims> idx_max{3, 5, 6};
+        ::std::array<size_t, dims> lengths = {2, 3};
+        //bounds<dims> bnd{idx_min, idx_max};
+        //bounds<dims> bnd3{
+        //    {-11,-1},
+        //    {-22,-2},
+        //    {-33,-3}
+        //};
+        //print(idx_min);
+        //print(idx_max);
+        //print(bnd);
+        //print(bnd3);
 
         {
-            iterator<double, dims, array_order::ROW_MAJOR> it{idx_min, idx_max};
-            cout << "ROW_MAJOR:\n";
-            print(it);
+            array<double, dims, array_order::ROW_MAJOR> arr{lengths};
+            std::iota(arr.begin(), arr.end(), 0.);
+            iterator<double, dims, array_order::ROW_MAJOR> it{&arr, idx_min, idx_max};
 
+            cout << it.order() << ": go forward: " << arr << "\n";
+            print2d(arr);
+            print(it << " " << *it);
             while (it._cursor != it._end)
             {
-                it++;
-                print(it);
+                ++it;
+                print(it << " " << *it);
             }
-            cout << "go back" << endl;
-            it._cursor = it._begin;
-            it.advance_cursor(it._flatRange - 1);
+            cout << it.order() << ": go back " << arr << "\n";
+            print2d(arr);
             print(it);
             while (it._cursor != it._begin)
             {
                 --it;
-                print(it);
+                print(it << " " << *it);
             }
         }
         {
-            iterator<double, dims, array_order::COLUMN_MAJOR> it{idx_min, idx_max};
-            cout << "COLUMN_MAJOR:\n";
-            print(it);
+            array<double, dims, array_order::COLUMN_MAJOR> arr{lengths};
+            std::iota(arr.begin(), arr.end(), 0.);
+            iterator<double, dims, array_order::COLUMN_MAJOR> it{&arr, idx_min, idx_max};
 
+            cout << it.order() << ": go forward " << arr << "\n";
+            print2d(arr);
+            print(it << " " << *it);
             while (it._cursor != it._end)
             {
-                it++;
-                print(it);
+                ++it;
+                print(it << " " << *it);
             }
-            cout << "go back" << endl;
-            it._cursor = it._begin;
-            it.advance_cursor(it._flatRange - 1);
+            cout << it.order() << ": go back " << arr << "\n";
+            print2d(arr);
             print(it);
             while (it._cursor != it._begin)
             {
                 --it;
-                print(it);
+                print(it << " " << *it);
             }
         }
     }
