@@ -77,12 +77,20 @@ using are_integral = are_all_true<
 >;
 
 /// compile-time sum
-template <typename T>
-inline constexpr T ct_plus(const T x, const T y) { return x + y; }
+template <typename T, typename U>
+inline constexpr typename std::common_type<T, U>::type ct_plus(const T x, const U y)
+{
+    using TU = typename std::common_type<T, U>::type;
+    return static_cast<TU>(x) + static_cast<TU>(y);
+}
 
 /// compile-time product
-template <typename T>
-inline constexpr T ct_prod(const T x, const T y) { return x * y; }
+template <typename T, typename U>
+inline constexpr typename std::common_type<T, U>::type ct_prod(const T x, const U y)
+{
+    using TU = typename std::common_type<T, U>::type;
+    return static_cast<TU>(x) * static_cast<TU>(y);
+}
 
 /// compile-time equivalent to `std::accumulate()`
 template <
@@ -121,9 +129,9 @@ template <
 >
 inline constexpr
 T ct_inner_product(const ::std::array<T_1, N_1>& arr_1,  ///< calc the inner product of this array
-                   const size_t  first_1,        ///< from this position
+                   const size_t  first_1,                ///< from this position
                    const ::std::array<T_2, N_2>& arr_2,  ///< with this array
-                   const size_t  first_2,        ///< from this position
+                   const size_t  first_2,                ///< from this position
                    const size_t  length,         ///< using this many elements from both arrays
                    const T       initialValue,   ///< let this be the summation's initial value
                    const O_SUM&  op_sum,         ///< use this as the summation operator
@@ -172,7 +180,7 @@ computeIndexCoeffs(const ::std::array<size_type, Dimensions>& dimensionLengths) 
                                             i + 1,
                                             Dimensions - i - 1,
                                             static_cast<size_type>(1),
-                                            ct_prod<size_type>);
+                                            ct_prod<size_type, size_type>);
     }
     return coeffs;
 }
@@ -207,7 +215,7 @@ computeIndexCoeffs(const ::std::array<size_type, Dimensions>& dimensionLengths) 
                                             0,
                                             i,
                                             static_cast<size_type>(1),
-                                            ct_prod<size_type>);
+                                            ct_prod<size_type, size_type>);
     }
     return coeffs;
 }
@@ -218,7 +226,7 @@ template <std::size_t Dimensions, typename size_type, typename flat_index_type>
 inline constexpr
 size_type
 flatten_index(const ::std::array<flat_index_type, Dimensions>& indexArray,
-              const ::std::array<size_type, Dimensions>&  coeffs) noexcept
+              const ::std::array<size_type, Dimensions>&       coeffs) noexcept
 {
     /* https://www.codecogs.com/latex/eqneditor.php
        \begin{cases}
@@ -233,23 +241,23 @@ flatten_index(const ::std::array<flat_index_type, Dimensions>& indexArray,
     return internal::ct_inner_product(coeffs, 0,
                                       indexArray, 0,
                                       Dimensions,
-                                      static_cast<flat_index_type>(0),
-                                      internal::ct_plus<flat_index_type>,
-                                      internal::ct_prod<flat_index_type>);
+                                      static_cast<size_type>(0),
+                                      internal::ct_plus<size_type, size_type>,
+                                      internal::ct_prod<size_type, flat_index_type>);
 }
 
 template <std::size_t Dimensions, typename Iterable>
-ptrdiff_t compute_flat_range(const Iterable& begin_, const Iterable& end_)
+std::size_t compute_flat_range(const Iterable& begin_, const Iterable& end_)
 {
     // compute the range of each dimension
-    ::std::array<ptrdiff_t, Dimensions> ranges;
+    ::std::array<std::size_t, Dimensions> ranges;
     std::transform(end_.begin(), end_.end(),
                    begin_.begin(),
                    ranges.begin(),
                    std::minus<ptrdiff_t>());
     // the "flat range" is the product of the sub ranges
     return std::accumulate(ranges.begin(), ranges.end(),
-                           static_cast<ptrdiff_t>(1),
+                           static_cast<std::size_t>(1),
                            std::multiplies<ptrdiff_t>());
 }
 
@@ -497,7 +505,7 @@ public:
     hyper_index_type _begin;   // @todo extract from _array
     hyper_index_type _cursor;
     hyper_index_type _end;     // @todo extract from _array
-    difference_type  _flatRange;
+    size_type        _flatRange;
 
 public:
 
@@ -552,7 +560,7 @@ public:
     // https://allthingscomputation.wordpress.com/2013/10/02/an-example-of-a-random-access-iterator-in-c11/
     // http://zotu.blogspot.fr/2010/01/creating-random-access-iterator.html
     // dereferencing
-    value_type& operator*()  const
+    value_type& operator*() const
     {
         const auto flatIndex = internal::flatten_index(_cursor._indices, _array->coeffs());
         assert((0 <= flatIndex) && (flatIndex < _flatRange));
@@ -655,7 +663,7 @@ public:
 
         const difference_type distance_to_origin = cursor_distance_to_origin() + distance_;
 
-        if (distance_to_origin >= _flatRange)
+        if (distance_to_origin >= static_cast<difference_type>(_flatRange))
         {
             _cursor = _end;
             return *this;
@@ -695,7 +703,7 @@ private:
                        std::minus<difference_type>());
         difference_type d = 0;
         d += diff[0];
-        for (difference_type i = 1; i < Dimensions; ++i)
+        for (size_type i = 1; i < Dimensions; ++i)
         {
             d += diff[i] * std::accumulate(ranges.begin(), ranges.begin() + i,
                                            static_cast<difference_type>(1),
@@ -720,9 +728,9 @@ private:
                        std::minus<difference_type>());
         difference_type d = 0;
         d += diff[Dimensions - 1];
-        for (difference_type i = 1; i < Dimensions; ++i)
+        for (size_type i = 1; i < Dimensions; ++i)
         {
-            d += diff[Dimensions - 1 - i] * std::accumulate(ranges.rbegin(), ranges.rbegin() + i,
+            d += diff[Dimensions - 1 - i] * std::accumulate(ranges.rbegin(), ranges.rbegin() + static_cast<difference_type>(i),
                                                             static_cast<difference_type>(1),
                                                             std::multiplies<difference_type>());
         }
@@ -767,7 +775,7 @@ private:
         difference_type q = distance_to_origin;
 
         _cursor = _begin;
-        for (difference_type i = 0; i < Dimensions; ++i)
+        for (size_type i = 0; i < Dimensions; ++i)
         {
             range = _end[i] - _begin[i];
             _cursor[i] += q % range;
@@ -789,8 +797,9 @@ private:
         _cursor = _begin;
         for (difference_type i = Dimensions - 1; i >= 0; --i)
         {
-            range = _end[i] - _begin[i];
-            _cursor[i] += q % range;
+            const size_type ui = static_cast<size_type>(i);
+            range = _end[ui] - _begin[ui];
+            _cursor[ui] += q % range;
             q /= range;
             if (q == 0)
             {
@@ -1172,7 +1181,7 @@ private:
                                        0,
                                        Dimensions,
                                        static_cast<size_type>(1),
-                                       internal::ct_prod<size_type>);
+                                       internal::ct_prod<size_type, size_type>);
     }
 
     static

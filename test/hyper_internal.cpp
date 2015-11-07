@@ -64,15 +64,17 @@ TEST_CASE("ct_accumulate", "[type_traits]")
     constexpr long long series_sum           = element_count * (series_initial_value + element_count) / 2;
 
     {
-        std::array<int, element_count> series;
-        std::iota(series.begin(), series.end(), static_cast<int>(series_initial_value));
-        REQUIRE(series_sum == hyper_array::internal::ct_accumulate(series, 0, element_count, static_cast<int>(0), hyper_array::internal::ct_plus<int>));
+        using value_type = int;
+        std::array<value_type, element_count> series;
+        std::iota(series.begin(), series.end(), static_cast<value_type>(series_initial_value));
+        REQUIRE(series_sum == hyper_array::internal::ct_accumulate(series, 0u, element_count, static_cast<value_type>(0), hyper_array::internal::ct_plus<value_type, value_type>));
     }
 
     {
-        std::array<double, element_count> series;
-        std::iota(series.begin(), series.end(), static_cast<double>(series_initial_value));
-        REQUIRE(Approx(series_sum) == hyper_array::internal::ct_accumulate(series, 0, element_count, static_cast<double>(0), hyper_array::internal::ct_plus<double>));
+        using value_type = double;
+        std::array<value_type, element_count> series;
+        std::iota(series.begin(), series.end(), static_cast<value_type>(series_initial_value));
+        REQUIRE(Approx(series_sum) == hyper_array::internal::ct_accumulate(series, 0, element_count, static_cast<value_type>(0), hyper_array::internal::ct_plus<value_type, value_type>));
     }
 }
 
@@ -87,12 +89,12 @@ TEST_CASE("ct_inner_product", "[type_traits]")
         std::array<int, element_count> w{{-3,6, -3}};
         REQUIRE(non_null_value == hyper_array::internal::ct_inner_product(
                 u, 0, v, 0, element_count, static_cast<int>(0),
-                hyper_array::internal::ct_plus<int>,
-                hyper_array::internal::ct_prod<int>));
+                hyper_array::internal::ct_plus<int, int>,
+                hyper_array::internal::ct_prod<int, int>));
         REQUIRE(0 == hyper_array::internal::ct_inner_product(
                 u, 0, w, 0, element_count, static_cast<int>(0),
-                hyper_array::internal::ct_plus<int>,
-                hyper_array::internal::ct_prod<int>));
+                hyper_array::internal::ct_plus<int, int>,
+                hyper_array::internal::ct_prod<int, int>));
     }
 
     {
@@ -101,12 +103,12 @@ TEST_CASE("ct_inner_product", "[type_traits]")
         std::array<double, element_count> w{{-3,6, -3}};
         REQUIRE(Approx(non_null_value) == hyper_array::internal::ct_inner_product(
                 u, 0, v, 0, element_count, static_cast<double>(0.0),
-                hyper_array::internal::ct_plus<double>,
-                hyper_array::internal::ct_prod<double>));
+                hyper_array::internal::ct_plus<double, double>,
+                hyper_array::internal::ct_prod<double, double>));
         REQUIRE(Approx(0.0) == hyper_array::internal::ct_inner_product(
                 u, 0, w, 0, element_count, static_cast<double>(0.0),
-                hyper_array::internal::ct_plus<double>,
-                hyper_array::internal::ct_prod<double>));
+                hyper_array::internal::ct_plus<double, double>,
+                hyper_array::internal::ct_prod<double, double>));
     }
 }
 

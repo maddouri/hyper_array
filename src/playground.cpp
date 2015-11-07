@@ -1,5 +1,5 @@
 
-// clang++-3.7 -stdlib=libc++ -std=c++11 -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat -Werror ${file} -lc++ -lc++abi -o -o ${file_path}/${file_base_name}
+// clang++-3.7 -stdlib=libc++ -std=c++11 -Wall -Wextra -Wpedantic -Weverything -Wno-c++98-compat -Werror ${file} -lc++ -lc++abi -o ${file_path}/${file_base_name}
 // g++ -std=c++11 -std=c++11 -fdiagnostics-show-option -Wall -Wextra -Wpedantic -Werror ${file} -o ${file_path}/${file_base_name}
 
 // std
@@ -218,7 +218,7 @@ int main()
         //index<dims> idx_min(1, 2, 3);
         index<dims> idx_max{2, 3};
         //index<dims> idx_max{3, 5, 6};
-        ::std::array<size_t, dims> lengths = {2, 3};
+        ::std::array<size_t, dims> lengths = {{2, 3}};
         //bounds<dims> bnd{idx_min, idx_max};
         //bounds<dims> bnd3{
         //    {-11,-1},
