@@ -214,9 +214,9 @@ int main()
 
         using namespace hyper_array;
         constexpr size_t dims = 2;
-        index<dims> idx_min(0, 0);
+        index<dims> idx_begin(0, 1);
         //index<dims> idx_min(1, 2, 3);
-        index<dims> idx_max{2, 3};
+        index<dims> idx_end{1, 3};
         //index<dims> idx_max{3, 5, 6};
         ::std::array<size_t, dims> lengths = {{2, 3}};
         //bounds<dims> bnd{idx_min, idx_max};
@@ -233,7 +233,7 @@ int main()
         {
             array<double, dims, array_order::ROW_MAJOR> arr{lengths};
             std::iota(arr.begin(), arr.end(), 0.);
-            view<double, arr.dimensions(), arr.order()> vw{arr};
+            view<double, arr.dimensions(), arr.order()> vw{arr, idx_begin, idx_end};
             iterator<double, arr.dimensions(), arr.order()> it(&vw);//, idx_min, idx_max);
 
             cout << it.order() << ": go forward: " << arr << "\n";
@@ -247,7 +247,7 @@ int main()
             cout << it.order() << ": go back " << arr << "\n";
             print2d(arr);
             print(it << " " << *it);
-            while (it._cursor != it._begin)
+            while (it._cursor != index<dims>{0})
             {
                 --it;
                 print(it << " " << *it);
@@ -256,7 +256,7 @@ int main()
         {
             array<double, dims, array_order::COLUMN_MAJOR> arr{lengths};
             std::iota(arr.begin(), arr.end(), 0.);
-            view<double, arr.dimensions(), arr.order()> vw{arr};
+            view<double, arr.dimensions(), arr.order()> vw{arr, idx_begin, idx_end};
             iterator<double, arr.dimensions(), arr.order()> it(&vw);//, idx_min, idx_max};
 
             cout << it.order() << ": go forward " << arr << "\n";
@@ -270,7 +270,7 @@ int main()
             cout << it.order() << ": go back " << arr << "\n";
             print2d(arr);
             print(it << " " << *it);
-            while (it._cursor != it._begin)
+            while (it._cursor != index<dims>{0})
             {
                 --it;
                 print(it << " " << *it);

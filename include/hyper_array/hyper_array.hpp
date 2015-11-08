@@ -14,7 +14,7 @@
 
 // <editor-fold desc="Includes">
 // std
-//#include <algorithm>       // during dev. replaced by compile-time equivalents in hyper_array::internal
+#include <algorithm>         // std::accumulate, std::equal...
 #include <array>             // std::array for hyper_array::array::dimensionLengths and indexCoeffs
 #include <cassert>           // assert()
 #include <cstddef>           // ptrdiff_t
@@ -44,6 +44,14 @@ enum class array_order : int
 /// used for tag dispatching
 template <array_order Order> struct array_order_tag {};
 
+// <editor-fold defaultstate="collapsed" desc="Forward Declarations">
+template <std::size_t Dimensions>                                        class index;
+template <std::size_t Dimensions>                                        class bounds;
+template <typename ValueType, std::size_t Dimensions, array_order Order, bool IsConst> class iterator;
+template <typename ValueType, std::size_t Dimensions, array_order Order> class view;
+template <typename ValueType, std::size_t Dimensions, array_order Order> class array;
+// </editor-fold>
+
 // <editor-fold defaultstate="collapsed" desc="Internal Helper Blocks">
 /// helper functions for hyper_array::array's implementation
 /// @note Everything here is subject to change and must NOT be used by user code
@@ -54,6 +62,11 @@ namespace internal
 /// @see http://en.cppreference.com/w/cpp/types/enable_if#Helper_types
 template <bool b, typename T>
 using enable_if_t = typename std::enable_if<b, T>::type;
+
+/// shorthand for the std::conditional syntax
+/// @see http://en.cppreference.com/w/cpp/types/conditional
+template <bool b, typename T, typename F>
+using conditional_t = typename std::conditional<b, T, F>::type;
 
 /// building block of a neat trick for checking multiple types against a given trait
 template <bool...>
@@ -75,6 +88,12 @@ using are_integral = are_all_true<
         typename std::remove_reference<Ts>::type
     >::value...
 >;
+
+/// avoids repetion/long lines in a few enable_if_t expressions
+template <std::size_t Dimensions, typename... Indices>
+using are_indices = std::integral_constant<bool,
+                                           (sizeof...(Indices) == Dimensions)
+                                           && are_integral<Indices...>::value>;
 
 /// compile-time sum
 template <typename T, typename U>
@@ -247,6 +266,15 @@ flatten_index(const ::std::array<flat_index_type, Dimensions>& indexArray,
 }
 
 template <std::size_t Dimensions, typename Iterable>
+std::size_t compute_flat_range(const Iterable& hyperRange_)
+{
+    // the "flat range" is the product of the sub ranges
+    return std::accumulate(hyperRange_.begin(), hyperRange_.end(),
+                           static_cast<std::size_t>(1),
+                           std::multiplies<ptrdiff_t>());
+}
+
+template <std::size_t Dimensions, typename Iterable>
 std::size_t compute_flat_range(const Iterable& begin_, const Iterable& end_)
 {
     // compute the range of each dimension
@@ -255,10 +283,8 @@ std::size_t compute_flat_range(const Iterable& begin_, const Iterable& end_)
                    begin_.begin(),
                    ranges.begin(),
                    std::minus<ptrdiff_t>());
-    // the "flat range" is the product of the sub ranges
-    return std::accumulate(ranges.begin(), ranges.end(),
-                           static_cast<std::size_t>(1),
-                           std::multiplies<ptrdiff_t>());
+    //
+    return compute_flat_range<Dimensions>(ranges);
 }
 
 template <typename T_DST, typename T_SRC, std::size_t LEN>
@@ -269,15 +295,160 @@ template <typename T_DST, typename T_SRC, std::size_t LEN>
     return dst;
 }
 
+template <std::size_t Dimensions>
+void advance_cursor_dispatch(const array_order_tag<array_order::COLUMN_MAJOR>&,
+                             index<Dimensions>& _cursor,
+                             const std::ptrdiff_t distance_to_origin,
+                             const index<Dimensions>& _begin,
+                             const index<Dimensions>& _end)
+{
+    // basic algorithm: here for reference
+//        // range = _end - _begin
+//        ::std::array<difference_type, Dimensions> range;
+//        std::transform(_end.begin(), _end.end(),
+//                       _begin.begin(),
+//                       range.begin(),
+//                       std::minus<difference_type>());
+//
+//        // compute the offset of each "component" w.r.t. _begin (the offset is the remainder)
+//        ::std::array<difference_type, Dimensions> r;  // remainder
+//        ::std::array<difference_type, Dimensions> q;  // quotient
+//        q[0] = distance_to_origin;
+//        r[0] = q[0] % range[0];
+//        for (size_t i = 1; i < Dimensions; ++i)
+//        {
+//            q[i] = q[i - 1] / range[i - 1];
+//            if (q[i] == 0)
+//            {
+//                std::fill(r.begin() + i, r.end(), 0);
+//                break;
+//            }
+//            r[i] = q[i] % range[i];
+//        }
+//
+//        // _cursor = _begin + r
+//        std::transform(_begin.begin(), _begin.end(),
+//                       r.begin(),
+//                       _cursor.begin(),
+//                       std::plus<difference_type>());
+
+    // implementation 2: simplification/refactoring of the "basic algorithm"
+    std::ptrdiff_t range;
+    std::ptrdiff_t q = distance_to_origin;
+
+    _cursor = _begin;
+    for (std::size_t i = 0; i < Dimensions; ++i)
+    {
+        range = _end[i] - _begin[i];
+        _cursor[i] += q % range;
+        q /= range;
+        if (q == 0)
+        {
+            break;
+        }
+    }
+}
+
+template <std::size_t Dimensions>
+void advance_cursor_dispatch(const array_order_tag<array_order::ROW_MAJOR>&,
+                             index<Dimensions>& _cursor,
+                             const std::ptrdiff_t distance_to_origin,
+                             const index<Dimensions>& _begin,
+                             const index<Dimensions>& _end)
+{
+    // implementation 2: simplification/refactoring of the "basic algorithm"
+    std::ptrdiff_t range;
+    std::ptrdiff_t q = distance_to_origin;
+
+    _cursor = _begin;
+    for (std::ptrdiff_t i = Dimensions - 1; i >= 0; --i)
+    {
+        const std::size_t ui = static_cast<std::size_t>(i);
+        range = _end[ui] - _begin[ui];
+        _cursor[ui] += q % range;
+        q /= range;
+        if (q == 0)
+        {
+            break;
+        }
+    }
+}
+
+template <std::size_t Dimensions>
+std::ptrdiff_t cursor_distance_to_origin_dispatch(const array_order_tag<array_order::COLUMN_MAJOR>&,
+                                                   const index<Dimensions>& cursor,
+                                                   const index<Dimensions>& _begin,
+                                                   const index<Dimensions>& _end)
+{
+    index<Dimensions> diff;
+    // diff = last - first
+    std::transform(cursor.begin(), cursor.end(),
+                   _begin.begin(),
+                   diff.begin(),
+                   std::minus<std::ptrdiff_t>());
+    ::std::array<std::ptrdiff_t, Dimensions> ranges;
+    std::transform(_end.begin(), _end.end(),
+                   _begin.begin(),
+                   ranges.begin(),
+                   std::minus<std::ptrdiff_t>());
+    std::ptrdiff_t d = 0;
+    d += diff[0];
+    for (std::size_t i = 1; i < Dimensions; ++i)
+    {
+        d += diff[i] * std::accumulate(ranges.begin(), ranges.begin() + i,
+                                       static_cast<std::ptrdiff_t>(1),
+                                       std::multiplies<std::ptrdiff_t>());
+    }
+    return d;
+}
+
+template <std::size_t Dimensions>
+std::ptrdiff_t cursor_distance_to_origin_dispatch(const array_order_tag<array_order::ROW_MAJOR>&,
+                                                   const index<Dimensions>& cursor,
+                                                   const index<Dimensions>& _begin,
+                                                   const index<Dimensions>& _end)
+{
+    index<Dimensions> diff;
+    // diff = last - first
+    std::transform(cursor.begin(), cursor.end(),
+                   _begin.begin(),
+                   diff.begin(),
+                   std::minus<std::ptrdiff_t>());
+    ::std::array<std::ptrdiff_t, Dimensions> ranges;
+    std::transform(_end.begin(), _end.end(),
+                   _begin.begin(),
+                   ranges.begin(),
+                   std::minus<std::ptrdiff_t>());
+    std::ptrdiff_t d = 0;
+    d += diff[Dimensions - 1];
+    for (std::size_t i = 1; i < Dimensions; ++i)
+    {
+        d += diff[Dimensions - 1 - i] * std::accumulate(ranges.rbegin(), ranges.rbegin() + static_cast<std::ptrdiff_t>(i),
+                                                        static_cast<std::ptrdiff_t>(1),
+                                                        std::multiplies<std::ptrdiff_t>());
+    }
+    return d;
+}
+
+template<array_order Order, std::size_t Dimensions>
+std::ptrdiff_t cursor_distance_to_origin(const index<Dimensions>& cursor,
+                                         const index<Dimensions>& _begin,
+                                         const index<Dimensions>& _end)
+{
+    return cursor_distance_to_origin_dispatch(array_order_tag<Order>{}, cursor, _begin, _end);
+}
+
+template<array_order Order, std::size_t Dimensions>
+std::ptrdiff_t cursor_distance_to_origin(const index<Dimensions>& cursor,
+                                         const index<Dimensions>& _end)
+{
+    return cursor_distance_to_origin<Order>(cursor, index<Dimensions>{0}, _end);
+}
+
+
 }
 // </editor-fold>
 
-// forward-declaration, because hyper array is needed some classes, e.g. iterator
-template <typename ValueType, std::size_t Dimensions, array_order Order>
-class array;
-
-template <typename ValueType, std::size_t Dimensions, array_order Order>
-class view;
 
 /// A multi-dimensional index -- i.e. a "Dimensions"-tuple of scalar indices
 /// inspired by [Multidimensional bounds, offset and array_view, revision 7](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2015/n4512.html)
@@ -317,6 +488,7 @@ public:
     : _indices(std::move(other._indices))
     {}
 
+    explicit
     index(const value_type initialValue)
     : _indices([&initialValue](){
         ::std::array<value_type, Dimensions> indices;
@@ -336,9 +508,8 @@ public:
 
     template <
         typename... Indices,
-        typename = internal::enable_if_t<
-            (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
-            void>
+        typename = internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+                                         void>
     >
     index(Indices... indices)
     : _indices{{static_cast<value_type>(indices)...}}
@@ -380,13 +551,25 @@ public:
 
     bool operator==(const this_type& other) const { return _indices == other._indices; }
     bool operator!=(const this_type& other) const { return _indices != other._indices; }
-    bool operator< (const this_type& other) const { return _indices <  other._indices; }
-    bool operator<=(const this_type& other) const { return _indices <= other._indices; }
-    bool operator> (const this_type& other) const { return _indices >  other._indices; }
-    bool operator>=(const this_type& other) const { return _indices >= other._indices; }
+    bool operator< (const this_type& other) const {
+        return std::equal(_indices.begin(), _indices.end(), other._indices.begin(),
+                          [](const value_type& a, const value_type& b) { return a < b; });
+    }
+    bool operator<=(const this_type& other) const {
+        return std::equal(_indices.begin(), _indices.end(), other._indices.begin(),
+                          [](const value_type& a, const value_type& b) { return a <= b; });
+    }
+    bool operator> (const this_type& other) const {
+        return std::equal(_indices.begin(), _indices.end(), other._indices.begin(),
+                          [](const value_type& a, const value_type& b) { return a > b; });
+    }
+    bool operator>=(const this_type& other) const {
+        return std::equal(_indices.begin(), _indices.end(), other._indices.begin(),
+                          [](const value_type& a, const value_type& b) { return a >= b; });
+    }
 
     // increment to all
-    this_type operator+(const ptrdiff_t d)
+    this_type operator+(const ptrdiff_t d) const
     {
         this_type result;
         std::transform(_indices.begin(), _indices.end(),
@@ -397,12 +580,12 @@ public:
         return result;
     }
     // decrement all
-    this_type operator-(const ptrdiff_t d)
+    this_type operator-(const ptrdiff_t d) const
     {
         return (*this) + (-d);
     }
 
-    this_type operator+(const this_type& other)
+    this_type operator+(const this_type& other) const
     {
         this_type result;
         std::transform(_indices.begin(), _indices.end(),
@@ -412,7 +595,7 @@ public:
         return result;
     }
 
-    this_type operator-(const this_type& other)
+    this_type operator-(const this_type& other) const
     {
         this_type result;
         std::transform(_indices.begin(), _indices.end(),
@@ -504,19 +687,22 @@ public:
     const_reverse_iterator crend()   const noexcept { return _bounds.crend();   }
 };
 
-/// Iterates over the elements of a hyper array that are comprised within the limits
-/// defined by a `bounds<Dimensions>`
+/// Iterates over the elements of a hyper array
+/// that are comprised within the limits of a given hyper view
+/// NB: in order to avoid code duplication for the "const" version of the iterator
+///     I'm going to use a technique explained on Dr. Dobb's http://www.ddj.com/cpp/184401331
+///     other ideas can be found on SO https://stackoverflow.com/q/2150192/865719
 template <
-    typename    ValueType,                      ///< elements' type
-    std::size_t Dimensions,                     ///< number of dimensions
-    array_order Order = array_order::ROW_MAJOR  ///< storage order
+    typename    ValueType,                       ///< elements' type
+    std::size_t Dimensions,                      ///< number of dimensions
+    array_order Order = array_order::ROW_MAJOR,  ///< storage order
+    bool        IsConst = false
 >
 class iterator
 {
 public:
     using this_type        = iterator<ValueType, Dimensions, Order>;
     using size_type        = std::size_t;
-    //using array_type       = array<ValueType, Dimensions, Order>;
     using view_type        = view<ValueType, Dimensions, Order>;
     using hyper_index_type = index<Dimensions>;
     using flat_index_type  = std::ptrdiff_t;
@@ -530,46 +716,39 @@ public:
     using iterator_category = std::random_access_iterator_tag;
 
 public:
+    // since an iterator is assocated with a view, _cursor is going to be a "relative" index
+    // the view is going to handle the relative<->absolute translation
+    // therefore _end == hyper range
+    // and the cursor_distance_to_origin == cursor (because it's relative to the view's _begin)
 
-    view_type* _array;
-
-    hyper_index_type _begin;   // @todo extract from _array
+    const view_type* _view;
     hyper_index_type _cursor;
-    hyper_index_type _end;     // @todo extract from _array
-    size_type        _flatRange;
+    hyper_index_type _end;     ///< one past the end. "relative" end -- i.e. view.lengths()
 
 public:
 
     iterator()
-    : _array{nullptr}
-    , _begin{}
+    : _view{nullptr}
     , _cursor{}
     , _end{}
-    , _flatRange{}
     {}
 
     iterator(const this_type& other)
-    : _array{other._array}
-    , _begin{other._begin}
+    : _view{other._view}
     , _cursor{other._cursor}
     , _end{other._end}
-    , _flatRange{other._flatRange}
     {}
 
     iterator(this_type&& other)
-    : _array{other._array}
-    , _begin{std::move(other._begin)}
+    : _view{other._view}
     , _cursor{std::move(other._cursor)}
     , _end{std::move(other._end)}
-    , _flatRange{other._flatRange}
     {}
 
-    iterator(view_type* view_)
-    : _array(view_)
-    , _begin(view_->begin_index())
-    , _cursor{_begin}
-    , _end(view_->end_index())
-    , _flatRange{internal::compute_flat_range<Dimensions>(_begin, _end)}
+    iterator(const view_type* view_)
+    : _view(view_)
+    , _cursor{0}
+    , _end(view_->lengths())
     {}
 
     // template parameters
@@ -581,62 +760,51 @@ public:
     // https://allthingscomputation.wordpress.com/2013/10/02/an-example-of-a-random-access-iterator-in-c11/
     // http://zotu.blogspot.fr/2010/01/creating-random-access-iterator.html
     // dereferencing
-    value_type& operator*() const
-    {
-        const auto flatIndex = internal::flatten_index(_cursor._indices, _array->coeffs());
-        assert((0 <= flatIndex) && (flatIndex < _flatRange));
-        return (*_array)[flatIndex];
-    }
-    value_type& operator->() const
-    {
-        const auto flatIndex = internal::flatten_index(_cursor._indices, _array->coeffs());
-        assert((0 <= flatIndex) && (flatIndex < _flatRange));
-        return (*_array)[flatIndex];
-    }
+    value_type& operator*()  const { return _view->operator[](_cursor); }
+    value_type* operator->() const { return std::addressof(_view->operator[](_cursor)); }
     // prefix inc/dec
     this_type& operator++() { advance_cursor( 1); return *this; }
     this_type& operator--() { advance_cursor(-1); return *this; }
     // postfix inc/dec
-    this_type operator++(const int) { auto prev = *this; advance_cursor( 1); return prev; }
-    this_type operator--(const int) { auto prev = *this; advance_cursor(-1); return prev; }
+    this_type operator++(const int) { this_type prev{*this}; advance_cursor( 1); return prev; }
+    this_type operator--(const int) { this_type prev{*this}; advance_cursor(-1); return prev; }
     // compound assignment
     this_type& operator+=(const difference_type d) { return advance_cursor( d); }
     this_type& operator-=(const difference_type d) { return advance_cursor(-d); }
-    // arithmetic operators
-    this_type operator+(const difference_type& d)
+    // arithmetic operations with integral types: "iterator +/- number" AND "number +/- iterator"
+    this_type operator+(const difference_type& d) const
     {
         this_type result;
-        result.advance_cursor(cursor_distance_to_origin() + d);
+        result.advance_cursor(flat_cursor() + d);
         return result;
     }
-    this_type operator-(const difference_type& d)
+    this_type operator-(const difference_type& d) const
     {
         this_type result;
-        result.advance_cursor(cursor_distance_to_origin() - d);
+        result.advance_cursor(flat_cursor() - d);
         return result;
     }
-    difference_type operator-(const this_type& other)
+    friend this_type operator+(const difference_type& d, const this_type& it) { return it + d; }
+    friend this_type operator-(const difference_type& d, const this_type& it) { return it - d; }
+    // arithmetic operations with other iterators
+    difference_type operator-(const this_type& other) const
     {
-        return cursor_distance_to_origin() - other.cursor_distance_to_origin();
+        return flat_cursor() - other.flat_cursor();
     }
     // assignment
     this_type& operator=(const this_type& other)
     {
-        _array     = other._array;
-        _begin     = other._begin;
+        _view      = other._view;
         _cursor    = other._cursor;
         _end       = other._end;
-        _flatRange = other._flatRange;
 
         return *this;
     }
     this_type& operator=(this_type&& other)
     {
-        _array     = other._array;
-        _begin     = std::move(other._begin);
+        _view      = other._view;
         _cursor    = std::move(other._cursor);
         _end       = std::move(other._end);
-        _flatRange = other._flatRange;
 
         return *this;
     }
@@ -653,7 +821,7 @@ public:
     {
         this_type tmp{std::move(other)};
         other = std::move(*this);
-        (*this) = std::move(tmp);
+        this->operator=(std::move(tmp));
     }
     friend void swap(this_type& lhs, this_type& rhs)
     {
@@ -665,11 +833,7 @@ public:
     {
         if (_cursor >= _end)
         {
-            if (distance_ >= 0)
-            {
-                return *this;
-            }
-            else
+            if (distance_ < 0)
             {
                 // _end is "1 past the end"
                 // the usual use of it in "arithmetic expressions" is something like
@@ -680,159 +844,45 @@ public:
                 _cursor = _end - 1;
                 ++distance_;  // yes, increment -- i.e. reduce the distance (distance < 0)
             }
+            else
+            {
+                // the cursor is out of bounds, nothing else to do
+                return *this;
+            }
         }
 
-        const difference_type distance_to_origin = cursor_distance_to_origin() + distance_;
+        const difference_type distance_to_origin = flat_cursor() + distance_;
 
-        if (distance_to_origin >= static_cast<difference_type>(_flatRange))
+        if (distance_to_origin >= static_cast<difference_type>(_view->size()))
         {
             _cursor = _end;
-            return *this;
         }
         else if (distance_to_origin <= 0)
         {
-            _cursor = _begin;
-            return *this;
+            _cursor = hyper_index_type{0};
         }
         else
         {
-            advance_cursor_dispatch(array_order_tag<Order>{}, distance_to_origin);
-            return *this;
+            internal::advance_cursor_dispatch(array_order_tag<Order>{},
+                                              _cursor,
+                                              distance_to_origin,
+                                              hyper_index_type{0},
+                                              _end);
         }
+
+        return *this;
     }
 
 private:
 
-    difference_type cursor_distance_to_origin() const
+    difference_type flat_cursor() const
     {
-        return cursor_distance_to_origin_dispatch(array_order_tag<Order>{});
-    }
-
-    difference_type cursor_distance_to_origin_dispatch(
-        const array_order_tag<array_order::COLUMN_MAJOR>&) const
-    {
-        hyper_index_type diff;
-        // diff = last - first
-        std::transform(_cursor.begin(), _cursor.end(),
-                       _begin.begin(),
-                       diff.begin(),
-                       std::minus<difference_type>());
-        ::std::array<difference_type, Dimensions> ranges;
-        std::transform(_end.begin(), _end.end(),
-                       _begin.begin(),
-                       ranges.begin(),
-                       std::minus<difference_type>());
-        difference_type d = 0;
-        d += diff[0];
-        for (size_type i = 1; i < Dimensions; ++i)
-        {
-            d += diff[i] * std::accumulate(ranges.begin(), ranges.begin() + i,
-                                           static_cast<difference_type>(1),
-                                           std::multiplies<difference_type>());
-        }
-        return d;
-    }
-
-    difference_type cursor_distance_to_origin_dispatch(
-        const array_order_tag<array_order::ROW_MAJOR>&) const
-    {
-        hyper_index_type diff;
-        // diff = last - first
-        std::transform(_cursor.begin(), _cursor.end(),
-                       _begin.begin(),
-                       diff.begin(),
-                       std::minus<difference_type>());
-        ::std::array<difference_type, Dimensions> ranges;
-        std::transform(_end.begin(), _end.end(),
-                       _begin.begin(),
-                       ranges.begin(),
-                       std::minus<difference_type>());
-        difference_type d = 0;
-        d += diff[Dimensions - 1];
-        for (size_type i = 1; i < Dimensions; ++i)
-        {
-            d += diff[Dimensions - 1 - i] * std::accumulate(ranges.rbegin(), ranges.rbegin() + static_cast<difference_type>(i),
-                                                            static_cast<difference_type>(1),
-                                                            std::multiplies<difference_type>());
-        }
-        return d;
-    }
-
-    void advance_cursor_dispatch(const array_order_tag<array_order::COLUMN_MAJOR>&,
-                                 const difference_type distance_to_origin)
-    {
-        // basic algorithm: here for reference
-//        // range = _end - _begin
-//        ::std::array<difference_type, Dimensions> range;
-//        std::transform(_end.begin(), _end.end(),
-//                       _begin.begin(),
-//                       range.begin(),
-//                       std::minus<difference_type>());
-//
-//        // compute the offset of each "component" w.r.t. _begin (the offset is the remainder)
-//        ::std::array<difference_type, Dimensions> r;  // remainder
-//        ::std::array<difference_type, Dimensions> q;  // quotient
-//        q[0] = distance_to_origin;
-//        r[0] = q[0] % range[0];
-//        for (size_t i = 1; i < Dimensions; ++i)
-//        {
-//            q[i] = q[i - 1] / range[i - 1];
-//            if (q[i] == 0)
-//            {
-//                std::fill(r.begin() + i, r.end(), 0);
-//                break;
-//            }
-//            r[i] = q[i] % range[i];
-//        }
-//
-//        // _cursor = _begin + r
-//        std::transform(_begin.begin(), _begin.end(),
-//                       r.begin(),
-//                       _cursor.begin(),
-//                       std::plus<difference_type>());
-
-        // implementation 2: simplification/refactoring of the "basic algorithm"
-        difference_type range;
-        difference_type q = distance_to_origin;
-
-        _cursor = _begin;
-        for (size_type i = 0; i < Dimensions; ++i)
-        {
-            range = _end[i] - _begin[i];
-            _cursor[i] += q % range;
-            q /= range;
-            if (q == 0)
-            {
-                break;
-            }
-        }
-    }
-
-    void advance_cursor_dispatch(const array_order_tag<array_order::ROW_MAJOR>&,
-                                 const difference_type distance_to_origin)
-    {
-        // implementation 2: simplification/refactoring of the "basic algorithm"
-        difference_type range;
-        difference_type q = distance_to_origin;
-
-        _cursor = _begin;
-        for (difference_type i = Dimensions - 1; i >= 0; --i)
-        {
-            const size_type ui = static_cast<size_type>(i);
-            range = _end[ui] - _begin[ui];
-            _cursor[ui] += q % range;
-            q /= range;
-            if (q == 0)
-            {
-                break;
-            }
-        }
+        return internal::cursor_distance_to_origin<Order>(_cursor, _end);
     }
 
 };
 
-/// A multi-dimensional array
-/// Inspired by [orca_array](https://github.com/astrobiology/orca_array)
+/// A multi-dimensional view
 template <
     typename    ValueType,                       ///< elements' type
     std::size_t Dimensions,                      ///< number of dimensions
@@ -852,9 +902,9 @@ public:
     using difference_type        = std::ptrdiff_t;
 
     using iterator               = hyper_array::iterator<value_type, Dimensions, Order>;
-    using const_iterator         = const iterator;
+    //using const_iterator         = hyper_array::const_iterator<value_type, Dimensions, Order>;
     using reverse_iterator       = std::reverse_iterator<iterator>;
-    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+    //using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     // others
     using array_type             = hyper_array::array<value_type, Dimensions, Order>;
     using view_type              = hyper_array::view<value_type, Dimensions, Order>;
@@ -863,11 +913,10 @@ public:
     // </editor-fold>
 
 private:
-    array_type* _array;
-
-    hyper_index_type _begin;
-    hyper_index_type _end;    ///< "one past the end"
-    size_type        _flatRange;
+    array_type*                         _array;
+    hyper_index_type                    _begin;
+    hyper_index_type                    _end;         ///< "one past the end"
+    size_type                           _flatRange;
     ::std::array<size_type, Dimensions> _hyperRange;
 
 public:
@@ -879,7 +928,7 @@ public:
     , _begin{other._begin}
     , _end{other._end}
     , _flatRange{other._flatRange}
-    , _hyperRange([this]()    {
+    , _hyperRange([this](){
         decltype(_hyperRange) result;
         std::transform(_end.begin(), _end.end(),
                        _begin.begin(),
@@ -887,7 +936,9 @@ public:
                        std::minus<value_type>{});
         return result;
     }())
-    {}
+    {
+        assert(_begin < _end);
+    }
 
     view(view_type&& other)
     : _array(other._array)
@@ -895,31 +946,16 @@ public:
     , _end{std::move(other._end)}
     , _flatRange{other._flatRange}
     , _hyperRange(std::move(other._hyperRange))
-    {}
+    {
+        assert(_begin < _end);
+    }
 
     view(array_type& array_)
     : _array(std::addressof(array_))
     , _begin{0}
     , _end(array_.lengths())
     , _flatRange{array_.size()}
-    , _hyperRange([this]() -> ::std::array<size_type, Dimensions> {
-        ::std::array<size_type, Dimensions> result;
-        std::transform(_end.begin(), _end.end(),
-                       _begin.begin(),
-                       result.begin(),
-                       std::minus<value_type>());
-        return result;
-    }())
-    {}
-
-    view(array_type& array_,
-         const hyper_index_type& begin_,
-         const hyper_index_type& end_)
-    : _array(std::addressof(array_))
-    , _begin{begin_}
-    , _end{end_}
-    , _flatRange{internal::compute_flat_range(begin_, end_)}
-    , _hyperRange([this]()    {
+    , _hyperRange([this](){
         decltype(_hyperRange) result;
         std::transform(_end.begin(), _end.end(),
                        _begin.begin(),
@@ -927,29 +963,32 @@ public:
                        std::minus<value_type>());
         return result;
     }())
-    {}
+    {
+        assert(_begin < _end);
+    }
 
-    view_type& operator=(const view_type& other) = delete;
-    //{
-    //    _array      = other._array;
-    //    _begin      = other._begin;
-    //    _end        = other._end;
-    //    _flatRange  = other._flatRange;
-    //    _hyperRange = other._hyperRange;
-    //
-    //    return *this;
-    //}
+    view(array_type& array_,
+         const hyper_index_type& begin_,
+         const hyper_index_type& end_)
+    : _array(std::addressof(array_))
+    , _begin{begin_}
+    , _end{end_}
+    , _flatRange{internal::compute_flat_range<Dimensions>(begin_, end_)}
+    , _hyperRange([this](){
+        decltype(_hyperRange) result;
+        std::transform(_end.begin(), _end.end(),
+                       _begin.begin(),
+                       result.begin(),
+                       std::minus<value_type>());
+        return result;
+    }())
+    {
+        assert(_begin < _end);
+    }
 
-    view_type& operator=(view_type&& other) = delete;
-    //{
-    //    _array      = other._array;
-    //    _begin      = std::move(other._begin);
-    //    _end        = std::move(other._end);
-    //    _flatRange  = other._flatRange;
-    //    _hyperRange = std::move(other._hyperRange);
-    //
-    //    return *this;
-    //}
+    // @todo these should copy the contents of "other"s hyper range into "this"s hyper range
+    view_type& operator=(const view_type&  other) = delete;
+    view_type& operator=(      view_type&& other) = delete;
 
     // <editor-fold defaultstate="collapsed" desc="Whole-Array Iterators">
     // from <array>
@@ -1005,22 +1044,155 @@ public:
 
     size_type size() const noexcept
     {
-        return std::accumulate(_hyperRange.begin(), _hyperRange.end(),
-                               static_cast<size_type>(1),
-                               std::multiplies<size_type>{});
+        return _flatRange;
     }
 
-          value_type* data()       noexcept { return _array->data(); }
-    const value_type* data() const noexcept { return _array->data(); }
+    //      value_type* data()       noexcept { return _array->data(); }
+    //const value_type* data() const noexcept { return _array->data(); }
+    value_type* data() const noexcept { return _array->data(); }
 
-    value_type& operator[](const flat_index_type idx)
+    //      value_type& operator[](const flat_index_type  idx)       { return _array->operator[](absolute_index(idx)); }
+    //const value_type& operator[](const flat_index_type  idx) const { return _array->operator[](absolute_index(idx)); }
+    value_type& operator[](const flat_index_type  idx) const { return _array->operator[](absolute_index(idx)); }
+    //      value_type& operator[](const hyper_index_type idx)       { return _array->operator[](absolute_index(idx)); }
+    //const value_type& operator[](const hyper_index_type idx) const { return _array->operator[](absolute_index(idx)); }
+    value_type& operator[](const hyper_index_type idx) const { return _array->operator[](absolute_index(idx)); }
+
+    //template <typename... Indices>
+    //internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+    //                      value_type&>
+    //at(Indices... indices)
+    //{
+    //    hyper_index_type idx{indices...};
+    //    return validateIndexRanges(idx)
+    //         ? operator[](idx)
+    //         : operator[](_flatRange);
+    //}
+    //
+    //template <typename... Indices>
+    //internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+    //                      const value_type&>
+    //at(Indices... indices) const
+    //{
+    //    hyper_index_type idx{indices...};
+    //    return validateIndexRanges(idx)
+    //         ? operator[](idx)
+    //         : operator[](_flatRange);
+    //}
+
+    template <typename... Indices>
+    internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+                          value_type&>
+    at(Indices... indices) const
     {
-        return _array->operator[](idx);
+        hyper_index_type idx{indices...};
+        return validateIndexRanges(idx)
+             ? operator[](idx)
+             : operator[](_flatRange);
     }
 
-    const value_type& operator[](const flat_index_type idx) const
+    //template <typename... Indices>
+    //internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+    //                      value_type&>
+    //operator()(Indices... indices)        { return _array->operator[](hyper_index_type{indices...}); }
+    //
+    //template <typename... Indices>
+    //internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+    //                      const value_type&>
+    //operator()(Indices... indices) const { return _array->operator[](hyper_index_type{indices...}); }
+
+    template <typename... Indices>
+    internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+                          value_type&>
+    operator()(Indices... indices) const { return _array->operator[](hyper_index_type{indices...}); }
+
+    template <typename... Indices>
+    internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+                          flat_index_type>
+    flatIndex(Indices... indices) const { return internal::cursor_distance_to_origin({indices...}, _begin, _end); }
+
+
+private:
+
+    void advance_cursor(hyper_index_type& cursor, difference_type distance_) const
     {
-        return _array->operator[](idx);
+        if (cursor >= _end)
+        {
+            if (distance_ < 0)
+            {
+                // _end is "1 past the end"
+                // the usual use of it in "arithmetic expressions" is something like
+                //   "end - 1": the last accessible element
+                //   "end - n": the n'th element starting from the end
+                // if cursor is >= _end, "cursor - 1" is NOT the last accessible element
+                // therefore, _cursor and distance_ have to be re-adjusted
+                cursor = _end - 1;
+                ++distance_;  // yes, increment -- i.e. reduce the distance (distance < 0)
+            }
+            else
+            {
+                return;
+            }
+        }
+
+        const difference_type distance_to_origin =
+            internal::cursor_distance_to_origin<Order>(cursor, _begin, _end) + distance_;
+
+        if (distance_to_origin >= static_cast<difference_type>(_flatRange))
+        {
+            cursor = _end;
+        }
+        else if (distance_to_origin <= 0)
+        {
+            cursor = _begin;
+        }
+        else
+        {
+            internal::advance_cursor_dispatch(array_order_tag<Order>{},
+                                              cursor,
+                                              distance_to_origin,
+                                              _begin,
+                                              _end);
+        }
+    }
+
+    bool validateIndexRanges(const hyper_index_type& idx) const
+    {
+        // check all indices and prepare an exhaustive report (in oss)
+        // if some of them are out of bounds
+        std::ostringstream oss;
+        for (flat_index_type i = 0; i < Dimensions; ++i)
+        {
+            if ((idx[i] >= _end[i]) || (idx[i] < 0))
+            {
+                oss << "Index #" << i << " [== " << idx[i] << "]"
+                    << " is out of the [0, " << (_end[i]-1) << "] range. ";
+            }
+        }
+
+        // if nothing has been written to oss then all indices are valid
+        assert(oss.str().empty());
+        return oss.str().empty();
+        //if (oss.str().empty())
+        //{
+        //    return true;
+        //}
+        //else
+        //{
+        //    throw std::out_of_range(oss.str());
+        //}
+    }
+
+    hyper_index_type absolute_index(const flat_index_type relative) const
+    {
+        hyper_index_type absolute{_begin};
+        advance_cursor(absolute, static_cast<difference_type>(relative));
+        return absolute;
+    }
+
+    hyper_index_type absolute_index(const hyper_index_type& relative) const
+    {
+        return _begin + relative;
     }
 
 };
@@ -1054,6 +1226,7 @@ public:
     // others
     using array_type             = array<value_type, Dimensions, Order>;
     using flat_index_type        = std::size_t;
+    using hyper_index_type       = index<Dimensions>;
     // </editor-fold>
 
     // Attributes //////////////////////////////////////////////////////////////////////////////////
@@ -1266,6 +1439,18 @@ public:
         return _dataOwner[idx];
     }
 
+    /// Returns the element at index `idx` in the data array
+    value_type& operator[](const hyper_index_type& idx)
+    {
+        return _dataOwner[internal::flatten_index(idx._indices, _coeffs)];
+    }
+
+    /// `const` version of operator[]
+    const value_type& operator[](const hyper_index_type& idx) const
+    {
+        return _dataOwner[internal::flatten_index(idx._indices, _coeffs)];
+    }
+
     /// Returns the element at the given index tuple
     /// Usage:
     /// @code
@@ -1273,9 +1458,8 @@ public:
     ///     arr.at(3, 1, 4) = 3.14;
     /// @endcode
     template <typename... Indices>
-    internal::enable_if_t<
-        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
-        value_type&>
+    internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+                          value_type&>
     at(Indices... indices)
     {
         return _dataOwner[flatIndex_checkBounds(indices...)];
@@ -1283,9 +1467,8 @@ public:
 
     /// `const` version of at()
     template <typename... Indices>
-    internal::enable_if_t<
-        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
-        const value_type&>
+    internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+                          const value_type&>
     at(Indices... indices) const
     {
         return _dataOwner[flatIndex_checkBounds(indices...)];
@@ -1298,9 +1481,8 @@ public:
     ///     arr(3, 1, 4) = 3.14;
     /// @endcode
     template <typename... Indices>
-    internal::enable_if_t<
-        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
-        value_type&>
+    internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+                          value_type&>
     operator()(Indices... indices)
     {
         return _dataOwner[
@@ -1313,9 +1495,8 @@ public:
 
     /// `const` version of operator()
     template <typename... Indices>
-    internal::enable_if_t<
-        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
-        const value_type&>
+    internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+                          const value_type&>
     operator()(Indices... indices) const
     {
         return _dataOwner[
@@ -1333,9 +1514,8 @@ public:
     ///     assert(&arr.at(3, 1, 4) == &arr.data()[arr.flatIndex(3, 1, 4)]);
     /// @endcode
     template <typename... Indices>
-    internal::enable_if_t<
-        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
-        flat_index_type>
+    internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+                          flat_index_type>
     flatIndex(Indices... indices) const
     {
         return flatIndex_checkBounds(indices...);
@@ -1344,9 +1524,8 @@ public:
 private:
 
     template <typename... Indices>
-    internal::enable_if_t<
-        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
-        ::std::array<flat_index_type, Dimensions>>
+    internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+                          ::std::array<flat_index_type, Dimensions>>
     validateIndexRanges(Indices... indices) const
     {
         ::std::array<flat_index_type,
@@ -1378,9 +1557,8 @@ private:
     }
 
     template <typename... Indices>
-    internal::enable_if_t<
-        (sizeof...(Indices) == Dimensions) && internal::are_integral<Indices...>::value,
-        flat_index_type>
+    internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
+                          flat_index_type>
     flatIndex_checkBounds(Indices... indices) const
     {
         return internal::flatten_index(validateIndexRanges(indices...), _coeffs);
@@ -1520,7 +1698,7 @@ std::ostream& operator<<(std::ostream& out,
     out << "[ ";
     for (size_t i = 0; i < Dimensions; ++i)
     {
-        out << "[" << it._begin[i] << " " << it._cursor[i] << " " << it._end[i] << "] ";
+        out << "[" << it._cursor[i] << ":" << (it._end[i]-1) << "] ";
     }
     out << "]";
     return out;

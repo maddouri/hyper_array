@@ -12,9 +12,10 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(cxxFlags
         -std=c++11
         -fdiagnostics-show-option
-        -Wall -Wextra -Wpedantic -Werror
+        -Wall -Wextra -Wpedantic
         -Wconversion
-        -Wno-comment)
+        -Wno-comment
+        -Werror)
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
     # from: https://msdn.microsoft.com/en-us/library/thxezb7y.aspx
     # untested
