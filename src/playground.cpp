@@ -233,8 +233,8 @@ int main()
         {
             array<double, dims, array_order::ROW_MAJOR> arr{lengths};
             std::iota(arr.begin(), arr.end(), 0.);
-            view<double, arr.dimensions(), arr.order()> vw{arr, idx_begin, idx_end};
-            iterator<double, arr.dimensions(), arr.order()> it(&vw);//, idx_min, idx_max);
+            const view<double, arr.dimensions(), arr.order(), true> vw{arr, idx_begin, idx_end};
+            iterator<double, arr.dimensions(), arr.order(), true> it(vw);//, idx_min, idx_max);
 
             cout << it.order() << ": go forward: " << arr << "\n";
             print2d(arr);
@@ -257,7 +257,7 @@ int main()
             array<double, dims, array_order::COLUMN_MAJOR> arr{lengths};
             std::iota(arr.begin(), arr.end(), 0.);
             view<double, arr.dimensions(), arr.order()> vw{arr, idx_begin, idx_end};
-            iterator<double, arr.dimensions(), arr.order()> it(&vw);//, idx_min, idx_max};
+            iterator<double, arr.dimensions(), arr.order()> it(vw);//, idx_min, idx_max};
 
             cout << it.order() << ": go forward " << arr << "\n";
             print2d(arr);

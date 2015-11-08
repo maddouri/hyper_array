@@ -45,11 +45,11 @@ enum class array_order : int
 template <array_order Order> struct array_order_tag {};
 
 // <editor-fold defaultstate="collapsed" desc="Forward Declarations">
-template <std::size_t Dimensions>                                        class index;
-template <std::size_t Dimensions>                                        class bounds;
+template <std::size_t Dimensions>                                                      class index;
+template <std::size_t Dimensions>                                                      class bounds;
 template <typename ValueType, std::size_t Dimensions, array_order Order, bool IsConst> class iterator;
-template <typename ValueType, std::size_t Dimensions, array_order Order> class view;
-template <typename ValueType, std::size_t Dimensions, array_order Order> class array;
+template <typename ValueType, std::size_t Dimensions, array_order Order, bool IsConst> class view;
+template <typename ValueType, std::size_t Dimensions, array_order Order>               class array;
 // </editor-fold>
 
 // <editor-fold defaultstate="collapsed" desc="Internal Helper Blocks">
@@ -693,17 +693,19 @@ public:
 ///     I'm going to use a technique explained on Dr. Dobb's http://www.ddj.com/cpp/184401331
 ///     other ideas can be found on SO https://stackoverflow.com/q/2150192/865719
 template <
-    typename    ValueType,                       ///< elements' type
-    std::size_t Dimensions,                      ///< number of dimensions
-    array_order Order = array_order::ROW_MAJOR,  ///< storage order
+    typename    ValueType,                         ///< elements' type
+    std::size_t Dimensions,                        ///< number of dimensions
+    array_order Order   = array_order::ROW_MAJOR,  ///< storage order
     bool        IsConst = false
 >
 class iterator
 {
 public:
-    using this_type        = iterator<ValueType, Dimensions, Order>;
+    using this_type        = iterator<ValueType, Dimensions, Order, IsConst>;
     using size_type        = std::size_t;
-    using view_type        = view<ValueType, Dimensions, Order>;
+    using view_type        = internal::conditional_t<IsConst,
+                                                     const view<ValueType, Dimensions, Order, true>,
+                                                     const view<ValueType, Dimensions, Order, false>>;
     using hyper_index_type = index<Dimensions>;
     using flat_index_type  = std::ptrdiff_t;
 
@@ -711,8 +713,8 @@ public:
     // http://en.cppreference.com/w/cpp/iterator/iterator_traits
     using difference_type   = std::ptrdiff_t;
     using value_type        = ValueType;
-    using pointer           = value_type*;
-    using reference         = value_type&;
+    using pointer           = internal::conditional_t<IsConst, const value_type*, value_type*>;
+    using reference         = internal::conditional_t<IsConst, const value_type&, value_type&>;
     using iterator_category = std::random_access_iterator_tag;
 
 public:
@@ -721,34 +723,48 @@ public:
     // therefore _end == hyper range
     // and the cursor_distance_to_origin == cursor (because it's relative to the view's _begin)
 
-    const view_type* _view;
-    hyper_index_type _cursor;
+    view_type*       _view;
     hyper_index_type _end;     ///< one past the end. "relative" end -- i.e. view.lengths()
+    hyper_index_type _cursor;
 
 public:
 
     iterator()
     : _view{nullptr}
-    , _cursor{}
     , _end{}
+    , _cursor{}
     {}
 
     iterator(const this_type& other)
     : _view{other._view}
-    , _cursor{other._cursor}
     , _end{other._end}
+    , _cursor{other._cursor}
     {}
 
     iterator(this_type&& other)
     : _view{other._view}
-    , _cursor{std::move(other._cursor)}
     , _end{std::move(other._end)}
+    , _cursor{std::move(other._cursor)}
     {}
 
-    iterator(const view_type* view_)
-    : _view(view_)
+    iterator(view_type& view_)
+    : _view(std::addressof(view_))
+    , _end(view_.lengths())
     , _cursor{0}
-    , _end(view_->lengths())
+    {}
+
+    iterator(view_type& view_,
+             const flat_index_type cursor)
+    : _view(std::addressof(view_))
+    , _end(view_.lengths())
+    , _cursor{0}
+    { advance_cursor(cursor); }
+
+    iterator(view_type& view_,
+             const hyper_index_type& cursor)
+    : _view(std::addressof(view_))
+    , _end(view_.lengths())
+    , _cursor{cursor}
     {}
 
     // template parameters
@@ -760,8 +776,8 @@ public:
     // https://allthingscomputation.wordpress.com/2013/10/02/an-example-of-a-random-access-iterator-in-c11/
     // http://zotu.blogspot.fr/2010/01/creating-random-access-iterator.html
     // dereferencing
-    value_type& operator*()  const { return _view->operator[](_cursor); }
-    value_type* operator->() const { return std::addressof(_view->operator[](_cursor)); }
+    reference operator*()  const { return _view->operator[](_cursor);                 }
+    pointer   operator->() const { return std::addressof(_view->operator[](_cursor)); }
     // prefix inc/dec
     this_type& operator++() { advance_cursor( 1); return *this; }
     this_type& operator--() { advance_cursor(-1); return *this; }
@@ -884,9 +900,10 @@ private:
 
 /// A multi-dimensional view
 template <
-    typename    ValueType,                       ///< elements' type
-    std::size_t Dimensions,                      ///< number of dimensions
-    array_order Order = array_order::ROW_MAJOR   ///< storage order
+    typename    ValueType,                          ///< elements' type
+    std::size_t Dimensions,                         ///< number of dimensions
+    array_order Order   = array_order::ROW_MAJOR,   ///< storage order
+    bool        IsConst = false                     ///< same idea as iterator
 >
 class view
 {
@@ -894,20 +911,22 @@ public:
     // <editor-fold defaultstate="collapsed" desc="STL-like types">
     // from <array>
     using value_type             = ValueType;
-    using pointer                = value_type*;
+    using pointer                = internal::conditional_t<IsConst, const value_type*, value_type*>;
     using const_pointer          = const value_type*;
-    using reference              = value_type&;
+    using reference              = internal::conditional_t<IsConst, const value_type&, value_type&>;
     using const_reference        = const value_type&;
     using size_type              = std::size_t;
     using difference_type        = std::ptrdiff_t;
 
-    using iterator               = hyper_array::iterator<value_type, Dimensions, Order>;
-    //using const_iterator         = hyper_array::const_iterator<value_type, Dimensions, Order>;
+    using iterator               = hyper_array::iterator<value_type, Dimensions, Order, IsConst>;
+    using const_iterator         = hyper_array::iterator<value_type, Dimensions, Order, true>;
     using reverse_iterator       = std::reverse_iterator<iterator>;
-    //using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     // others
-    using array_type             = hyper_array::array<value_type, Dimensions, Order>;
-    using view_type              = hyper_array::view<value_type, Dimensions, Order>;
+    using array_type             = internal::conditional_t<IsConst,
+                                                           const hyper_array::array<value_type, Dimensions, Order>,
+                                                                 hyper_array::array<value_type, Dimensions, Order>>;
+    using view_type              = hyper_array::view<value_type, Dimensions, Order, IsConst>;
     using flat_index_type        = std::size_t;
     using hyper_index_type       = hyper_array::index<Dimensions>;
     // </editor-fold>
@@ -936,9 +955,7 @@ public:
                        std::minus<value_type>{});
         return result;
     }())
-    {
-        assert(_begin < _end);
-    }
+    { assert(_begin < _end); }
 
     view(view_type&& other)
     : _array(other._array)
@@ -946,9 +963,7 @@ public:
     , _end{std::move(other._end)}
     , _flatRange{other._flatRange}
     , _hyperRange(std::move(other._hyperRange))
-    {
-        assert(_begin < _end);
-    }
+    { assert(_begin < _end); }
 
     view(array_type& array_)
     : _array(std::addressof(array_))
@@ -963,9 +978,7 @@ public:
                        std::minus<value_type>());
         return result;
     }())
-    {
-        assert(_begin < _end);
-    }
+    { assert(_begin < _end); }
 
     view(array_type& array_,
          const hyper_index_type& begin_,
@@ -982,28 +995,43 @@ public:
                        std::minus<value_type>());
         return result;
     }())
+    { assert(_begin < _end); }
+
+    // @todo this should copy the contents of "other"s hyper range into "this"s hyper range
+    template <
+        typename T_ValueType,
+        array_order V_Order,
+        bool V_IsConst>
+    view_type& operator=(const view<T_ValueType,
+                                    Dimensions,
+                                    V_Order,
+                                    IsConst>& other)
     {
-        assert(_begin < _end);
+        assert(other.size() == size());          // allow "reshaping"
+        //assert(other.lengths() == lengths());  // require exact match
+
+        std::copy(other.begin(), other.end(), begin());
+
+        return *this;
     }
 
-    // @todo these should copy the contents of "other"s hyper range into "this"s hyper range
-    view_type& operator=(const view_type&  other) = delete;
-    view_type& operator=(      view_type&& other) = delete;
+    // @todo study what can be done w.r.t. move assignment...
+    view_type& operator=(view_type&& other) = delete;
 
     // <editor-fold defaultstate="collapsed" desc="Whole-Array Iterators">
     // from <array>
-    //      iterator         begin()         noexcept { return iterator{};                }
-    //const_iterator         begin()   const noexcept { return const_iterator(_array);          }
-    //      iterator         end()           noexcept { return iterator(_array + size());       }
-    //const_iterator         end()     const noexcept { return const_iterator(_array + size()); }
-    //      reverse_iterator rbegin()        noexcept { return reverse_iterator(end());         }
-    //const_reverse_iterator rbegin()  const noexcept { return const_reverse_iterator(end());   }
-    //      reverse_iterator rend()          noexcept { return reverse_iterator(begin());       }
-    //const_reverse_iterator rend()    const noexcept { return const_reverse_iterator(begin()); }
-    //const_iterator         cbegin()  const noexcept { return const_iterator(_array);          }
-    //const_iterator         cend()    const noexcept { return const_iterator(_array + size()); }
-    //const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end());   }
-    //const_reverse_iterator crend()   const noexcept { return const_reverse_iterator(begin()); }
+          iterator         begin()         noexcept { return iterator{*this};                    }
+    const_iterator         begin()   const noexcept { return const_iterator{*this};              }
+          iterator         end()           noexcept { return iterator{*this, lengths()};         }
+    const_iterator         end()     const noexcept { return const_iterator{*this, lengths()};   }
+          reverse_iterator rbegin()        noexcept { return reverse_iterator(end());            }
+    const_reverse_iterator rbegin()  const noexcept { return const_reverse_iterator(end());      }
+          reverse_iterator rend()          noexcept { return reverse_iterator(begin());          }
+    const_reverse_iterator rend()    const noexcept { return const_reverse_iterator(begin());    }
+    const_iterator         cbegin()  const noexcept { return const_iterator{*this};              }
+    const_iterator         cend()    const noexcept { return const_iterator{*this, lengths()};   }
+    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end());      }
+    const_reverse_iterator crend()   const noexcept { return const_reverse_iterator(begin());    }
     // </editor-fold>
 
     hyper_index_type begin_index() const noexcept { return _begin; }
@@ -1047,16 +1075,16 @@ public:
         return _flatRange;
     }
 
-    //      value_type* data()       noexcept { return _array->data(); }
-    //const value_type* data() const noexcept { return _array->data(); }
-    value_type* data() const noexcept { return _array->data(); }
+    //      pointer data()       noexcept { return _array->data(); }
+    //const_pointer data() const noexcept { return _array->data(); }
+    pointer data() const noexcept { return _array->data(); }
 
-    //      value_type& operator[](const flat_index_type  idx)       { return _array->operator[](absolute_index(idx)); }
-    //const value_type& operator[](const flat_index_type  idx) const { return _array->operator[](absolute_index(idx)); }
-    value_type& operator[](const flat_index_type  idx) const { return _array->operator[](absolute_index(idx)); }
-    //      value_type& operator[](const hyper_index_type idx)       { return _array->operator[](absolute_index(idx)); }
-    //const value_type& operator[](const hyper_index_type idx) const { return _array->operator[](absolute_index(idx)); }
-    value_type& operator[](const hyper_index_type idx) const { return _array->operator[](absolute_index(idx)); }
+    //      reference operator[](const flat_index_type  idx)       { return _array->operator[](absolute_index(idx)); }
+    //const_reference operator[](const flat_index_type  idx) const { return _array->operator[](absolute_index(idx)); }
+    reference operator[](const flat_index_type  idx) const { return _array->operator[](absolute_index(idx)); }
+    //      reference operator[](const hyper_index_type idx)       { return _array->operator[](absolute_index(idx)); }
+    //const_reference operator[](const hyper_index_type idx) const { return _array->operator[](absolute_index(idx)); }
+    reference operator[](const hyper_index_type idx) const { return _array->operator[](absolute_index(idx)); }
 
     //template <typename... Indices>
     //internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
@@ -1082,7 +1110,7 @@ public:
 
     template <typename... Indices>
     internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
-                          value_type&>
+                          reference>
     at(Indices... indices) const
     {
         hyper_index_type idx{indices...};
@@ -1103,7 +1131,7 @@ public:
 
     template <typename... Indices>
     internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
-                          value_type&>
+                          reference>
     operator()(Indices... indices) const { return _array->operator[](hyper_index_type{indices...}); }
 
     template <typename... Indices>
@@ -1689,11 +1717,12 @@ std::ostream& operator<<(std::ostream& out,
 template <
     typename    ValueType,
     std::size_t Dimensions,
-    hyper_array::array_order Order
+    hyper_array::array_order Order,
+    bool IsConst
 >
 inline
 std::ostream& operator<<(std::ostream& out,
-                         const hyper_array::iterator<ValueType, Dimensions, Order>& it)
+                         const hyper_array::iterator<ValueType, Dimensions, Order, IsConst>& it)
 {
     out << "[ ";
     for (size_t i = 0; i < Dimensions; ++i)
