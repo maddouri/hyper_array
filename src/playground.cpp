@@ -239,7 +239,7 @@ int main()
             cout << it.order() << ": go forward: " << arr << "\n";
             print2d(arr);
             print(it << " " << *it);
-            while (it._cursor != (it._end - 1))
+            while (it.cursor() != (it.end() - 1))
             {
                 ++it;
                 print(it << " " << *it);
@@ -247,7 +247,7 @@ int main()
             cout << it.order() << ": go back " << arr << "\n";
             print2d(arr);
             print(it << " " << *it);
-            while (it._cursor != index<dims>{0})
+            while (it.cursor() != index<dims>{0})
             {
                 --it;
                 print(it << " " << *it);
@@ -262,7 +262,7 @@ int main()
             cout << it.order() << ": go forward " << arr << "\n";
             print2d(arr);
             print(it << " " << *it);
-            while (it._cursor != (it._end - 1))
+            while (it.cursor() != (it.end() - 1))
             {
                 ++it;
                 print(it << " " << *it);
@@ -270,7 +270,7 @@ int main()
             cout << it.order() << ": go back " << arr << "\n";
             print2d(arr);
             print(it << " " << *it);
-            while (it._cursor != index<dims>{0})
+            while (it.cursor() != index<dims>{0})
             {
                 --it;
                 print(it << " " << *it);

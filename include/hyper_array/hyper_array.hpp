@@ -717,8 +717,8 @@ public:
     using reference         = internal::conditional_t<IsConst, const value_type&, value_type&>;
     using iterator_category = std::random_access_iterator_tag;
 
-public:
-    // since an iterator is assocated with a view, _cursor is going to be a "relative" index
+private:
+    // since an iterator is associated with a view, _cursor is going to be a "relative" index
     // the view is going to handle the relative<->absolute translation
     // therefore _end == hyper range
     // and the cursor_distance_to_origin == cursor (because it's relative to the view's _begin)
@@ -771,6 +771,11 @@ public:
     static constexpr size_type   dimensions() { return Dimensions; }
     static constexpr array_order order()      { return Order;      }
 
+    const hyper_index_type& cursor()                  const noexcept { return _cursor; }
+          difference_type   cursor(const size_type i) const          { assert(i < Dimensions); return _cursor[i]; }
+    const hyper_index_type& end()                     const noexcept { return _end; }
+          difference_type   end(const size_type i)    const          { assert(i < Dimensions); return _end[i];    }
+
     // RandomAccessIterator interface
     // http://www.cplusplus.com/reference/iterator/RandomAccessIterator/
     // https://allthingscomputation.wordpress.com/2013/10/02/an-example-of-a-random-access-iterator-in-c11/
@@ -810,17 +815,17 @@ public:
     // assignment
     this_type& operator=(const this_type& other)
     {
-        _view      = other._view;
-        _cursor    = other._cursor;
-        _end       = other._end;
+        _view   = other._view;
+        _cursor = other._cursor;
+        _end    = other._end;
 
         return *this;
     }
     this_type& operator=(this_type&& other)
     {
-        _view      = other._view;
-        _cursor    = std::move(other._cursor);
-        _end       = std::move(other._end);
+        _view   = other._view;
+        _cursor = std::move(other._cursor);
+        _end    = std::move(other._end);
 
         return *this;
     }
@@ -843,6 +848,8 @@ public:
     {
         lhs.swap(rhs);
     }
+
+private:
 
     // increments/decrements the cursor by the given flattened distance_
     this_type& advance_cursor(difference_type distance_)
@@ -888,8 +895,6 @@ public:
 
         return *this;
     }
-
-private:
 
     difference_type flat_cursor() const
     {
@@ -999,13 +1004,10 @@ public:
 
     // @todo this should copy the contents of "other"s hyper range into "this"s hyper range
     template <
-        typename T_ValueType,
+        typename    T_ValueType,
         array_order V_Order,
-        bool V_IsConst>
-    view_type& operator=(const view<T_ValueType,
-                                    Dimensions,
-                                    V_Order,
-                                    IsConst>& other)
+        bool        V_IsConst>
+    view_type& operator=(const view<T_ValueType, Dimensions, V_Order, V_IsConst>& other)
     {
         assert(other.size() == size());          // allow "reshaping"
         //assert(other.lengths() == lengths());  // require exact match
@@ -1024,20 +1026,21 @@ public:
     const_iterator         begin()   const noexcept { return const_iterator{*this};              }
           iterator         end()           noexcept { return iterator{*this, lengths()};         }
     const_iterator         end()     const noexcept { return const_iterator{*this, lengths()};   }
-          reverse_iterator rbegin()        noexcept { return reverse_iterator(end());            }
-    const_reverse_iterator rbegin()  const noexcept { return const_reverse_iterator(end());      }
-          reverse_iterator rend()          noexcept { return reverse_iterator(begin());          }
-    const_reverse_iterator rend()    const noexcept { return const_reverse_iterator(begin());    }
+          reverse_iterator rbegin()        noexcept { return reverse_iterator{end()};            }
+    const_reverse_iterator rbegin()  const noexcept { return const_reverse_iterator{end()};      }
+          reverse_iterator rend()          noexcept { return reverse_iterator{begin()};          }
+    const_reverse_iterator rend()    const noexcept { return const_reverse_iterator{begin()};    }
     const_iterator         cbegin()  const noexcept { return const_iterator{*this};              }
     const_iterator         cend()    const noexcept { return const_iterator{*this, lengths()};   }
-    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end());      }
-    const_reverse_iterator crend()   const noexcept { return const_reverse_iterator(begin());    }
+    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator{end()};      }
+    const_reverse_iterator crend()   const noexcept { return const_reverse_iterator{begin()};    }
     // </editor-fold>
 
-    hyper_index_type begin_index() const noexcept { return _begin; }
-    hyper_index_type end_index()   const noexcept { return _end; }
+    //hyper_index_type begin_index() const noexcept { return _begin; }
+    //hyper_index_type end_index()   const noexcept { return _end; }
 
     // hyper array interface
+
     // <editor-fold defaultstate="collapsed" desc="Template Arguments">
     /// number of dimensions
     static constexpr size_type   dimensions() noexcept { return Dimensions; }
@@ -1727,7 +1730,7 @@ std::ostream& operator<<(std::ostream& out,
     out << "[ ";
     for (size_t i = 0; i < Dimensions; ++i)
     {
-        out << "[" << it._cursor[i] << ":" << (it._end[i]-1) << "] ";
+        out << "[" << it.cursor(i) << ":" << (it.end(i)-1) << "] ";
     }
     out << "]";
     return out;
