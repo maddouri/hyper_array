@@ -19,7 +19,7 @@
 #include <cassert>           // assert()
 #include <cstddef>           // ptrdiff_t
 #include <initializer_list>  // std::initializer_list for the constructors
-#include <memory>            // std::unique_ptr for hyper_array::array::_dataOwner
+#include <memory>            // std::unique_ptr, std::addressof
 #include <sstream>           // stringstream in hyper_array::array::validateIndexRanges()
 #include <type_traits>       // template metaprogramming stuff in hyper_array::internal
 #if HYPER_ARRAY_CONFIG_Overload_Stream_Operator
@@ -261,12 +261,23 @@ std::size_t compute_flat_range(const Iterable& begin_, const Iterable& end_)
                            std::multiplies<ptrdiff_t>());
 }
 
+template <typename T_DST, typename T_SRC, std::size_t LEN>
+::std::array<T_DST, LEN> std_array_cast(const ::std::array<T_SRC, LEN>& src)
+{
+    ::std::array<T_DST, LEN> dst;
+    std::copy(src.begin(), src.end(), dst.begin());
+    return dst;
+}
+
 }
 // </editor-fold>
 
 // forward-declaration, because hyper array is needed some classes, e.g. iterator
 template <typename ValueType, std::size_t Dimensions, array_order Order>
 class array;
+
+template <typename ValueType, std::size_t Dimensions, array_order Order>
+class view;
 
 /// A multi-dimensional index -- i.e. a "Dimensions"-tuple of scalar indices
 /// inspired by [Multidimensional bounds, offset and array_view, revision 7](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2015/n4512.html)
@@ -315,8 +326,7 @@ public:
     {}
 
     template <typename T>
-    index(internal::enable_if_t<std::is_integral<T>::value,
-                                ::std::array<T, Dimensions>> indices)
+    index(const ::std::array<T, Dimensions>& indices)
     : _indices([&indices]() {
         decltype(_indices) result;
         std::copy(indices.begin(), indices.end(), result.begin());
@@ -390,6 +400,26 @@ public:
     this_type operator-(const ptrdiff_t d)
     {
         return (*this) + (-d);
+    }
+
+    this_type operator+(const this_type& other)
+    {
+        this_type result;
+        std::transform(_indices.begin(), _indices.end(),
+                       other._indices.begin(),
+                       result._indices.begin(),
+                       std::plus<value_type>{});
+        return result;
+    }
+
+    this_type operator-(const this_type& other)
+    {
+        this_type result;
+        std::transform(_indices.begin(), _indices.end(),
+                       other._indices.begin(),
+                       result._indices.begin(),
+                       std::minus<value_type>{});
+        return result;
     }
 };
 
@@ -486,7 +516,8 @@ class iterator
 public:
     using this_type        = iterator<ValueType, Dimensions, Order>;
     using size_type        = std::size_t;
-    using array_type       = array<ValueType, Dimensions, Order>;
+    //using array_type       = array<ValueType, Dimensions, Order>;
+    using view_type        = view<ValueType, Dimensions, Order>;
     using hyper_index_type = index<Dimensions>;
     using flat_index_type  = std::ptrdiff_t;
 
@@ -500,7 +531,7 @@ public:
 
 public:
 
-    array_type* _array;
+    view_type* _array;
 
     hyper_index_type _begin;   // @todo extract from _array
     hyper_index_type _cursor;
@@ -533,21 +564,11 @@ public:
     , _flatRange{other._flatRange}
     {}
 
-    iterator(array_type* const array_)
-    : _array{array_}
-    , _begin(0)
+    iterator(view_type* view_)
+    : _array(view_)
+    , _begin(view_->begin_index())
     , _cursor{_begin}
-    , _end(array_->lengths())
-    , _flatRange{internal::compute_flat_range<Dimensions>(_begin, _end)}
-    {}
-
-    iterator(array_type* const array_,
-             const hyper_index_type& begin_,
-             const hyper_index_type& end_)
-    : _array{array_}
-    , _begin{begin_}
-    , _cursor{_begin}
-    , _end{end_}
+    , _end(view_->end_index())
     , _flatRange{internal::compute_flat_range<Dimensions>(_begin, _end)}
     {}
 
@@ -813,9 +834,9 @@ private:
 /// A multi-dimensional array
 /// Inspired by [orca_array](https://github.com/astrobiology/orca_array)
 template <
-    typename    ValueType,                      ///< elements' type
-    std::size_t Dimensions,                     ///< number of dimensions
-    array_order Order = array_order::ROW_MAJOR  ///< storage order
+    typename    ValueType,                       ///< elements' type
+    std::size_t Dimensions,                      ///< number of dimensions
+    array_order Order = array_order::ROW_MAJOR   ///< storage order
 >
 class view
 {
@@ -842,10 +863,12 @@ public:
     // </editor-fold>
 
 private:
-    value_type* _array;
+    array_type* _array;
 
     hyper_index_type _begin;
-    hyper_index_type _end;   // "one past the
+    hyper_index_type _end;    ///< "one past the end"
+    size_type        _flatRange;
+    ::std::array<size_type, Dimensions> _hyperRange;
 
 public:
 
@@ -855,45 +878,151 @@ public:
     : _array{other._array}
     , _begin{other._begin}
     , _end{other._end}
+    , _flatRange{other._flatRange}
+    , _hyperRange([this]()    {
+        decltype(_hyperRange) result;
+        std::transform(_end.begin(), _end.end(),
+                       _begin.begin(),
+                       result.begin(),
+                       std::minus<value_type>{});
+        return result;
+    }())
     {}
 
     view(view_type&& other)
-    : _array{other._array}
+    : _array(other._array)
     , _begin{std::move(other._begin)}
     , _end{std::move(other._end)}
+    , _flatRange{other._flatRange}
+    , _hyperRange(std::move(other._hyperRange))
     {}
 
     view(array_type& array_)
-    : _array{array_.data()}
+    : _array(std::addressof(array_))
     , _begin{0}
-    , _end{array_.lengths()}
+    , _end(array_.lengths())
+    , _flatRange{array_.size()}
+    , _hyperRange([this]() -> ::std::array<size_type, Dimensions> {
+        ::std::array<size_type, Dimensions> result;
+        std::transform(_end.begin(), _end.end(),
+                       _begin.begin(),
+                       result.begin(),
+                       std::minus<value_type>());
+        return result;
+    }())
     {}
 
     view(array_type& array_,
          const hyper_index_type& begin_,
          const hyper_index_type& end_)
-    : _array{array_.data()}
+    : _array(std::addressof(array_))
     , _begin{begin_}
     , _end{end_}
+    , _flatRange{internal::compute_flat_range(begin_, end_)}
+    , _hyperRange([this]()    {
+        decltype(_hyperRange) result;
+        std::transform(_end.begin(), _end.end(),
+                       _begin.begin(),
+                       result.begin(),
+                       std::minus<value_type>());
+        return result;
+    }())
     {}
 
-    view_type& operator=(const view_type& other)
-    {
-        _array = other._array;
-        _begin = other._begin;
-        _end   = other._end;
+    view_type& operator=(const view_type& other) = delete;
+    //{
+    //    _array      = other._array;
+    //    _begin      = other._begin;
+    //    _end        = other._end;
+    //    _flatRange  = other._flatRange;
+    //    _hyperRange = other._hyperRange;
+    //
+    //    return *this;
+    //}
 
-        return *this;
+    view_type& operator=(view_type&& other) = delete;
+    //{
+    //    _array      = other._array;
+    //    _begin      = std::move(other._begin);
+    //    _end        = std::move(other._end);
+    //    _flatRange  = other._flatRange;
+    //    _hyperRange = std::move(other._hyperRange);
+    //
+    //    return *this;
+    //}
+
+    // <editor-fold defaultstate="collapsed" desc="Whole-Array Iterators">
+    // from <array>
+    //      iterator         begin()         noexcept { return iterator{};                }
+    //const_iterator         begin()   const noexcept { return const_iterator(_array);          }
+    //      iterator         end()           noexcept { return iterator(_array + size());       }
+    //const_iterator         end()     const noexcept { return const_iterator(_array + size()); }
+    //      reverse_iterator rbegin()        noexcept { return reverse_iterator(end());         }
+    //const_reverse_iterator rbegin()  const noexcept { return const_reverse_iterator(end());   }
+    //      reverse_iterator rend()          noexcept { return reverse_iterator(begin());       }
+    //const_reverse_iterator rend()    const noexcept { return const_reverse_iterator(begin()); }
+    //const_iterator         cbegin()  const noexcept { return const_iterator(_array);          }
+    //const_iterator         cend()    const noexcept { return const_iterator(_array + size()); }
+    //const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end());   }
+    //const_reverse_iterator crend()   const noexcept { return const_reverse_iterator(begin()); }
+    // </editor-fold>
+
+    hyper_index_type begin_index() const noexcept { return _begin; }
+    hyper_index_type end_index()   const noexcept { return _end; }
+
+    // hyper array interface
+    // <editor-fold defaultstate="collapsed" desc="Template Arguments">
+    /// number of dimensions
+    static constexpr size_type   dimensions() noexcept { return Dimensions; }
+    /// the convention used for arranging the elements
+    static constexpr array_order order()      noexcept { return Order;      }
+    // </editor-fold>
+
+
+    size_type length(const size_type dimensionIndex) const
+    {
+        assert(dimensionIndex < Dimensions);
+
+        return _hyperRange[dimensionIndex];
     }
 
-    view_type& operator=(view_type&& other)
+    const ::std::array<size_type, Dimensions>& lengths() const noexcept
     {
-        _array = other._array;
-        _begin = std::move(other._begin);
-        _end   = std::move(other._end);
-
-        return *this;
+        return _hyperRange;
     }
+
+    size_type coeff(const size_type coeffIndex) const
+    {
+        assert(coeffIndex < Dimensions);
+
+        return _array->coeffs()[coeffIndex];
+    }
+
+    const ::std::array<size_type, Dimensions>& coeffs() const noexcept
+    {
+        return _array->coeffs();
+    }
+
+    size_type size() const noexcept
+    {
+        return std::accumulate(_hyperRange.begin(), _hyperRange.end(),
+                               static_cast<size_type>(1),
+                               std::multiplies<size_type>{});
+    }
+
+          value_type* data()       noexcept { return _array->data(); }
+    const value_type* data() const noexcept { return _array->data(); }
+
+    value_type& operator[](const flat_index_type idx)
+    {
+        return _array->operator[](idx);
+    }
+
+    const value_type& operator[](const flat_index_type idx) const
+    {
+        return _array->operator[](idx);
+    }
+
 };
 
 /// A multi-dimensional array

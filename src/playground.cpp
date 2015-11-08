@@ -233,7 +233,8 @@ int main()
         {
             array<double, dims, array_order::ROW_MAJOR> arr{lengths};
             std::iota(arr.begin(), arr.end(), 0.);
-            iterator<double, dims, array_order::ROW_MAJOR> it{&arr, idx_min, idx_max};
+            view<double, arr.dimensions(), arr.order()> vw{arr};
+            iterator<double, arr.dimensions(), arr.order()> it(&vw);//, idx_min, idx_max);
 
             cout << it.order() << ": go forward: " << arr << "\n";
             print2d(arr);
@@ -245,7 +246,7 @@ int main()
             }
             cout << it.order() << ": go back " << arr << "\n";
             print2d(arr);
-            print(it);
+            print(it << " " << *it);
             while (it._cursor != it._begin)
             {
                 --it;
@@ -255,7 +256,8 @@ int main()
         {
             array<double, dims, array_order::COLUMN_MAJOR> arr{lengths};
             std::iota(arr.begin(), arr.end(), 0.);
-            iterator<double, dims, array_order::COLUMN_MAJOR> it{&arr, idx_min, idx_max};
+            view<double, arr.dimensions(), arr.order()> vw{arr};
+            iterator<double, arr.dimensions(), arr.order()> it(&vw);//, idx_min, idx_max};
 
             cout << it.order() << ": go forward " << arr << "\n";
             print2d(arr);
@@ -267,7 +269,7 @@ int main()
             }
             cout << it.order() << ": go back " << arr << "\n";
             print2d(arr);
-            print(it);
+            print(it << " " << *it);
             while (it._cursor != it._begin)
             {
                 --it;
