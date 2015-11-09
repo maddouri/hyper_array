@@ -723,7 +723,9 @@ private:
     // therefore _end == hyper range
     // and the cursor_distance_to_origin == cursor (because it's relative to the view's _begin)
 
-    view_type*       _view;
+    /// views are cheap to create.
+    /// also this solves the problem of constructing an iterator from an rvalue view&&
+    view_type        _view;
     hyper_index_type _end;     ///< one past the end. "relative" end -- i.e. view.lengths()
     hyper_index_type _cursor;
 
@@ -742,27 +744,27 @@ public:
     {}
 
     iterator(this_type&& other)
-    : _view{other._view}
+    : _view{std::move(other._view)}
     , _end{std::move(other._end)}
     , _cursor{std::move(other._cursor)}
     {}
 
     iterator(view_type& view_)
-    : _view(std::addressof(view_))
+    : _view{view_}
     , _end(view_.lengths())
     , _cursor{0}
     {}
 
     iterator(view_type& view_,
              const flat_index_type cursor)
-    : _view(std::addressof(view_))
+    : _view{view_}
     , _end(view_.lengths())
     , _cursor{0}
     { advance_cursor(cursor); }
 
     iterator(view_type& view_,
              const hyper_index_type& cursor)
-    : _view(std::addressof(view_))
+    : _view{view_}
     , _end(view_.lengths())
     , _cursor{cursor}
     {}
@@ -781,11 +783,11 @@ public:
     // https://allthingscomputation.wordpress.com/2013/10/02/an-example-of-a-random-access-iterator-in-c11/
     // http://zotu.blogspot.fr/2010/01/creating-random-access-iterator.html
     // dereferencing
-    reference operator*()  const { return _view->operator[](_cursor);                 }
-    pointer   operator->() const { return std::addressof(_view->operator[](_cursor)); }
+    reference operator*()  const { return _view.operator[](_cursor);                 }
+    pointer   operator->() const { return std::addressof(_view.operator[](_cursor)); }
     // prefix inc/dec
-    this_type& operator++() { advance_cursor( 1); return *this; }
-    this_type& operator--() { advance_cursor(-1); return *this; }
+    this_type& operator++() { return advance_cursor( 1); }
+    this_type& operator--() { return advance_cursor(-1); }
     // postfix inc/dec
     this_type operator++(const int) { this_type prev{*this}; advance_cursor( 1); return prev; }
     this_type operator--(const int) { this_type prev{*this}; advance_cursor(-1); return prev; }
@@ -793,18 +795,8 @@ public:
     this_type& operator+=(const difference_type d) { return advance_cursor( d); }
     this_type& operator-=(const difference_type d) { return advance_cursor(-d); }
     // arithmetic operations with integral types: "iterator +/- number" AND "number +/- iterator"
-    this_type operator+(const difference_type& d) const
-    {
-        this_type result;
-        result.advance_cursor(flat_cursor() + d);
-        return result;
-    }
-    this_type operator-(const difference_type& d) const
-    {
-        this_type result;
-        result.advance_cursor(flat_cursor() - d);
-        return result;
-    }
+    this_type operator+(const difference_type& d) const { return (this_type{*this}).advance_cursor( d); }
+    this_type operator-(const difference_type& d) const { return (this_type{*this}).advance_cursor(-d); }
     friend this_type operator+(const difference_type& d, const this_type& it) { return it + d; }
     friend this_type operator-(const difference_type& d, const this_type& it) { return it - d; }
     // arithmetic operations with other iterators
@@ -830,7 +822,6 @@ public:
         return *this;
     }
     // comparison
-    // @todo a better implementation
     bool operator==(const this_type& other) const { return _cursor == other._cursor; }
     bool operator!=(const this_type& other) const { return _cursor != other._cursor; }
     bool operator< (const this_type& other) const { return _cursor <  other._cursor; }
@@ -876,7 +867,7 @@ private:
 
         const difference_type distance_to_origin = flat_cursor() + distance_;
 
-        if (distance_to_origin >= static_cast<difference_type>(_view->size()))
+        if (distance_to_origin >= static_cast<difference_type>(_view.size()))
         {
             _cursor = _end;
         }
@@ -952,18 +943,11 @@ public:
     , _begin{other._begin}
     , _end{other._end}
     , _flatRange{other._flatRange}
-    , _hyperRange([this](){
-        decltype(_hyperRange) result;
-        std::transform(_end.begin(), _end.end(),
-                       _begin.begin(),
-                       result.begin(),
-                       std::minus<value_type>{});
-        return result;
-    }())
+    , _hyperRange(other._hyperRange)
     { assert(_begin < _end); }
 
     view(view_type&& other)
-    : _array(other._array)
+    : _array{other._array}
     , _begin{std::move(other._begin)}
     , _end{std::move(other._end)}
     , _flatRange{other._flatRange}
@@ -975,12 +959,9 @@ public:
     , _begin{0}
     , _end(array_.lengths())
     , _flatRange{array_.size()}
-    , _hyperRange([this](){
+    , _hyperRange([&array_](){
         decltype(_hyperRange) result;
-        std::transform(_end.begin(), _end.end(),
-                       _begin.begin(),
-                       result.begin(),
-                       std::minus<value_type>());
+        std::copy(array_.lengths().begin(), array_.lengths().end(), result.begin());
         return result;
     }())
     { assert(_begin < _end); }
@@ -997,7 +978,7 @@ public:
         std::transform(_end.begin(), _end.end(),
                        _begin.begin(),
                        result.begin(),
-                       std::minus<value_type>());
+                       std::minus<value_type>{});
         return result;
     }())
     { assert(_begin < _end); }
@@ -1061,17 +1042,17 @@ public:
         return _hyperRange;
     }
 
-    size_type coeff(const size_type coeffIndex) const
-    {
-        assert(coeffIndex < Dimensions);
+//    size_type coeff(const size_type coeffIndex) const
+//    {
+//        assert(coeffIndex < Dimensions);
+//
+//        return _array->coeffs()[coeffIndex];
+//    }
 
-        return _array->coeffs()[coeffIndex];
-    }
-
-    const ::std::array<size_type, Dimensions>& coeffs() const noexcept
-    {
-        return _array->coeffs();
-    }
+//    const ::std::array<size_type, Dimensions>& coeffs() const noexcept
+//    {
+//        return _array->coeffs();
+//    }
 
     size_type size() const noexcept
     {
@@ -1116,7 +1097,7 @@ public:
                           reference>
     at(Indices... indices) const
     {
-        hyper_index_type idx{indices...};
+        const hyper_index_type idx{indices...};
         return validateIndexRanges(idx)
              ? operator[](idx)
              : operator[](_flatRange);
