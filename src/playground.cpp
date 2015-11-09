@@ -208,9 +208,10 @@ int main()
         }
     }
 
-    // indices, bounds, iterator
+    // indices, bounds, iterators and views
     {
-        cout << "\nindices, bounds\n";
+        cout << "\nindices, bounds, iterators and views\n";
+        // @todo cleanup this mess...
 
         using namespace hyper_array;
         constexpr size_t dims = 2;
@@ -277,6 +278,21 @@ int main()
                 print(it << " " << *it);
             }
         }
+    }
+
+    // view assignment and reshaping
+    {
+        cout << "\nview assignment and reshaping\n";
+        // @todo create a working example
+
+        using namespace hyper_array;
+        array<int, 3, array_order::ROW_MAJOR> a{2, 4, 3};
+        // init a...
+        array<double, 2, array_order::COLUMN_MAJOR> b{3, 2};
+        view<int, a.dimensions(), a.order()> va{a, {1, 1, 0}, {2, 3, 3}};
+        view<double, b.dimensions(), b.order()> vb{b};
+        vb = va;
+
     }
 
 

@@ -705,7 +705,7 @@ public:
     using size_type        = std::size_t;
     using view_type        = internal::conditional_t<IsConst,
                                                      const view<ValueType, Dimensions, Order, true>,
-                                                     const view<ValueType, Dimensions, Order, false>>;
+                                                           view<ValueType, Dimensions, Order, false>>;
     using hyper_index_type = index<Dimensions>;
     using flat_index_type  = std::ptrdiff_t;
 
@@ -730,6 +730,12 @@ private:
     hyper_index_type _cursor;
 
 public:
+
+    // implicit conversion to a const iterator from any (const/non-const) iterators
+    operator iterator<value_type, Dimensions, Order, true>() const
+    {
+        return {_view, _cursor};
+    }
 
     iterator()
     : _view{nullptr}
@@ -936,6 +942,13 @@ private:
 
 public:
 
+    // implicit conversion to a const view from any (const/non-const) view
+    // this is a workaround for creating const_iterator from non-const views
+    operator view<value_type, Dimensions, Order, true>() const
+    {
+        return {*_array, _begin, _end};
+    }
+
     view() = delete;
 
     view(const view_type& other)
@@ -983,14 +996,27 @@ public:
     }())
     { assert(_begin < _end); }
 
-    // @todo this should copy the contents of "other"s hyper range into "this"s hyper range
+    /// copy the contents of @p other 's hyper range into `this` 's hyper range
+    /// @note @p other can be any view as long as `other.size()` == `this->size()`
+    ///       this allows for "reshaping" data
+    /// Usage example:
+    /// @code
+    ///     array<int, 3, array_order::ROW_MAJOR> a{2, 4, 3};
+    ///     // init a...
+    ///     array<double, 2, array_order::COLUMN_MAJOR> b{3, 2};
+    ///     view<int, a.dimensions(), a.order()> va{a, {1, 1, 0}, {2, 3, 3}};
+    ///     view<double, b.dimensions(), b.order()> vb{b};
+    ///     vb = va;
+    /// @endcode
     template <
         typename    T_ValueType,
+        std::size_t V_Dimensions,
         array_order V_Order,
-        bool        V_IsConst>
-    view_type& operator=(const view<T_ValueType, Dimensions, V_Order, V_IsConst>& other)
+        bool        V_IsConst
+    >
+    view_type& operator=(const view<T_ValueType, V_Dimensions, V_Order, V_IsConst>& other)
     {
-        assert(other.size() == size());          // allow "reshaping"
+        assert(other.size() == size());          // allow "reshaping": versatile
         //assert(other.lengths() == lengths());  // require exact match
 
         std::copy(other.begin(), other.end(), begin());
@@ -998,23 +1024,20 @@ public:
         return *this;
     }
 
-    // @todo study what can be done w.r.t. move assignment...
-    view_type& operator=(view_type&& other) = delete;
-
     // <editor-fold defaultstate="collapsed" desc="Whole-Array Iterators">
     // from <array>
-          iterator         begin()         noexcept { return iterator{*this};                    }
-    const_iterator         begin()   const noexcept { return const_iterator{*this};              }
-          iterator         end()           noexcept { return iterator{*this, lengths()};         }
-    const_iterator         end()     const noexcept { return const_iterator{*this, lengths()};   }
-          reverse_iterator rbegin()        noexcept { return reverse_iterator{end()};            }
-    const_reverse_iterator rbegin()  const noexcept { return const_reverse_iterator{end()};      }
-          reverse_iterator rend()          noexcept { return reverse_iterator{begin()};          }
-    const_reverse_iterator rend()    const noexcept { return const_reverse_iterator{begin()};    }
-    const_iterator         cbegin()  const noexcept { return const_iterator{*this};              }
-    const_iterator         cend()    const noexcept { return const_iterator{*this, lengths()};   }
-    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator{end()};      }
-    const_reverse_iterator crend()   const noexcept { return const_reverse_iterator{begin()};    }
+          iterator         begin()         noexcept { return iterator(*this);                    }
+    const_iterator         begin()   const noexcept { return const_iterator(*this);              }
+          iterator         end()           noexcept { return iterator(*this, lengths());         }
+    const_iterator         end()     const noexcept { return const_iterator(*this, lengths());   }
+          reverse_iterator rbegin()        noexcept { return reverse_iterator(end());            }
+    const_reverse_iterator rbegin()  const noexcept { return const_reverse_iterator(end());      }
+          reverse_iterator rend()          noexcept { return reverse_iterator(begin());          }
+    const_reverse_iterator rend()    const noexcept { return const_reverse_iterator(begin());    }
+    const_iterator         cbegin()  const noexcept { return const_iterator(*this);              }
+    const_iterator         cend()    const noexcept { return const_iterator(*this, lengths());   }
+    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end());      }
+    const_reverse_iterator crend()   const noexcept { return const_reverse_iterator(begin());    }
     // </editor-fold>
 
     //hyper_index_type begin_index() const noexcept { return _begin; }
