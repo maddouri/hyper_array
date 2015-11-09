@@ -39,7 +39,7 @@ install:
   # cmake 3
   - mkdir -p _build/cmake_bin _build/cmake_build
   - wget --no-check-certificate https://cmake.org/files/v3.3/cmake-3.3.2-Linux-x86_64.tar.gz -O _build/cmake_bin/cmake.tgz
-  - tar xvfz _build/cmake_bin/cmake.tgz -C _build/cmake_bin
+  - tar xfz _build/cmake_bin/cmake.tgz -C _build/cmake_bin
   - export CMAKE3="$(pwd)/_build/cmake_bin/cmake-3.3.2-Linux-x86_64/bin/cmake"
 
 script:
