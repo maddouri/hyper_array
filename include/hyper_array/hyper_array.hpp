@@ -374,75 +374,61 @@ void advance_cursor_dispatch(const array_order_tag<array_order::ROW_MAJOR>&,
     }
 }
 
-template <std::size_t Dimensions>
+template <std::size_t Dimensions, typename D, typename R>
 std::ptrdiff_t cursor_distance_to_origin_dispatch(const array_order_tag<array_order::COLUMN_MAJOR>&,
-                                                   const index<Dimensions>& cursor,
-                                                   const index<Dimensions>& _begin,
-                                                   const index<Dimensions>& _end)
+                                                  const ::std::array<D, Dimensions>& diff,
+                                                  const ::std::array<R, Dimensions>& ranges)
 {
-    index<Dimensions> diff;
-    // diff = last - first
-    std::transform(cursor.begin(), cursor.end(),
-                   _begin.begin(),
-                   diff.begin(),
-                   std::minus<std::ptrdiff_t>());
-    ::std::array<std::ptrdiff_t, Dimensions> ranges;
-    std::transform(_end.begin(), _end.end(),
-                   _begin.begin(),
-                   ranges.begin(),
-                   std::minus<std::ptrdiff_t>());
     std::ptrdiff_t d = 0;
     d += diff[0];
     for (std::size_t i = 1; i < Dimensions; ++i)
     {
-        d += diff[i] * std::accumulate(ranges.begin(), ranges.begin() + i,
+        d += diff[i] * std::accumulate(ranges.begin(),
+                                       ranges.begin() + i,
                                        static_cast<std::ptrdiff_t>(1),
                                        std::multiplies<std::ptrdiff_t>());
     }
     return d;
 }
 
-template <std::size_t Dimensions>
+template <std::size_t Dimensions, typename D, typename R>
 std::ptrdiff_t cursor_distance_to_origin_dispatch(const array_order_tag<array_order::ROW_MAJOR>&,
-                                                   const index<Dimensions>& cursor,
-                                                   const index<Dimensions>& _begin,
-                                                   const index<Dimensions>& _end)
+                                                  const ::std::array<D, Dimensions>& diff,
+                                                  const ::std::array<R, Dimensions>& ranges)
 {
-    index<Dimensions> diff;
-    // diff = last - first
-    std::transform(cursor.begin(), cursor.end(),
-                   _begin.begin(),
-                   diff.begin(),
-                   std::minus<std::ptrdiff_t>());
-    ::std::array<std::ptrdiff_t, Dimensions> ranges;
-    std::transform(_end.begin(), _end.end(),
-                   _begin.begin(),
-                   ranges.begin(),
-                   std::minus<std::ptrdiff_t>());
     std::ptrdiff_t d = 0;
     d += diff[Dimensions - 1];
     for (std::size_t i = 1; i < Dimensions; ++i)
     {
-        d += diff[Dimensions - 1 - i] * std::accumulate(ranges.rbegin(), ranges.rbegin() + static_cast<std::ptrdiff_t>(i),
+        d += diff[Dimensions - 1 - i] * std::accumulate(ranges.rbegin(),
+                                                        ranges.rbegin()
+                                                        + static_cast<std::ptrdiff_t>(i),
                                                         static_cast<std::ptrdiff_t>(1),
-                                                        std::multiplies<std::ptrdiff_t>());
+                                                        std::multiplies<std::ptrdiff_t>{});
     }
     return d;
 }
 
-template<array_order Order, std::size_t Dimensions>
-std::ptrdiff_t cursor_distance_to_origin(const index<Dimensions>& cursor,
-                                         const index<Dimensions>& _begin,
-                                         const index<Dimensions>& _end)
+template <array_order Order, std::size_t Dimensions, typename D, typename R>
+std::ptrdiff_t cursor_distance_to_origin(const ::std::array<D, Dimensions>& diff,    // i.e. cursor
+                                         const ::std::array<R, Dimensions>& ranges)  // i.e. end
 {
-    return cursor_distance_to_origin_dispatch(array_order_tag<Order>{}, cursor, _begin, _end);
+    return cursor_distance_to_origin_dispatch(array_order_tag<Order>{}, diff, ranges);
 }
 
-template<array_order Order, std::size_t Dimensions>
+template <array_order Order, std::size_t Dimensions>
 std::ptrdiff_t cursor_distance_to_origin(const index<Dimensions>& cursor,
-                                         const index<Dimensions>& _end)
+                                         const index<Dimensions>& begin,
+                                         const index<Dimensions>& end)
 {
-    return cursor_distance_to_origin<Order>(cursor, index<Dimensions>{0}, _end);
+    return cursor_distance_to_origin<Order>((cursor - begin)._indices, (end - begin)._indices);
+}
+
+template <array_order Order, std::size_t Dimensions>
+std::ptrdiff_t cursor_distance_to_origin(const index<Dimensions>& cursor,
+                                         const index<Dimensions>& end)
+{
+    return cursor_distance_to_origin<Order>(cursor._indices, end._indices);
 }
 
 
@@ -457,12 +443,12 @@ class index
 {
 public:
     // types
-    using this_type       = index<Dimensions>;
+    using this_type              = index<Dimensions>;
 
-    using reference       = ptrdiff_t&;
-    using const_reference = const ptrdiff_t&;
-    using size_type       = std::size_t;
-    using value_type      = ptrdiff_t;
+    using value_type             = std::ptrdiff_t;
+    using reference              = value_type&;
+    using const_reference        = const value_type&;
+    using size_type              = std::size_t;
 
     using iterator               = value_type*;
     using const_iterator         = const value_type*;
@@ -701,21 +687,25 @@ template <
 class iterator
 {
 public:
-    using this_type        = iterator<ValueType, Dimensions, Order, IsConst>;
-    using size_type        = std::size_t;
-    using view_type        = internal::conditional_t<IsConst,
-                                                     const view<ValueType, Dimensions, Order, true>,
-                                                           view<ValueType, Dimensions, Order, false>>;
-    using hyper_index_type = index<Dimensions>;
-    using flat_index_type  = std::ptrdiff_t;
+    using this_type         = iterator<ValueType, Dimensions, Order, IsConst>;
+    using size_type         = std::size_t;
+    using view_type         = internal::conditional_t<IsConst,
+                                  const view<ValueType, Dimensions, Order, true>,
+                                        view<ValueType, Dimensions, Order, false>>;
+    using hyper_index_type  = index<Dimensions>;
+    using flat_index_type   = std::ptrdiff_t;
 
     // iterator traits
     // http://en.cppreference.com/w/cpp/iterator/iterator_traits
-    using difference_type   = std::ptrdiff_t;
-    using value_type        = ValueType;
-    using pointer           = internal::conditional_t<IsConst, const value_type*, value_type*>;
-    using reference         = internal::conditional_t<IsConst, const value_type&, value_type&>;
     using iterator_category = std::random_access_iterator_tag;
+    using value_type        = ValueType;
+    using pointer           = internal::conditional_t<IsConst,
+                                  const value_type*,
+                                        value_type*>;
+    using reference         = internal::conditional_t<IsConst,
+                                  const value_type&,
+                                        value_type&>;
+    using difference_type   = std::ptrdiff_t;
 
 private:
     // since an iterator is associated with a view, _cursor is going to be a "relative" index
@@ -755,20 +745,20 @@ public:
     , _cursor{std::move(other._cursor)}
     {}
 
-    iterator(view_type& view_)
+    iterator(const view_type& view_)  // const typename std::remove_const<view_type>::type ?
     : _view{view_}
     , _end(view_.lengths())
     , _cursor{0}
     {}
 
-    iterator(view_type& view_,
+    iterator(const view_type& view_,
              const flat_index_type cursor)
     : _view{view_}
     , _end(view_.lengths())
     , _cursor{0}
     { advance_cursor(cursor); }
 
-    iterator(view_type& view_,
+    iterator(const view_type& view_,
              const hyper_index_type& cursor)
     : _view{view_}
     , _end(view_.lengths())
@@ -934,6 +924,8 @@ public:
     // </editor-fold>
 
 private:
+    // @todo change _flatRange to _size and _hyperRange to _lengths
+    // @todo remove either _end or _hyperRange
     array_type*                         _array;
     hyper_index_type                    _begin;
     hyper_index_type                    _end;         ///< "one past the end"
@@ -972,11 +964,7 @@ public:
     , _begin{0}
     , _end(array_.lengths())
     , _flatRange{array_.size()}
-    , _hyperRange([&array_](){
-        decltype(_hyperRange) result;
-        std::copy(array_.lengths().begin(), array_.lengths().end(), result.begin());
-        return result;
-    }())
+    , _hyperRange(array_.lengths())
     { assert(_begin < _end); }
 
     view(array_type& array_,
@@ -986,18 +974,15 @@ public:
     , _begin{begin_}
     , _end{end_}
     , _flatRange{internal::compute_flat_range<Dimensions>(begin_, end_)}
-    , _hyperRange([this](){
+    , _hyperRange([this](const hyper_index_type& range){
         decltype(_hyperRange) result;
-        std::transform(_end.begin(), _end.end(),
-                       _begin.begin(),
-                       result.begin(),
-                       std::minus<value_type>{});
+        std::copy(range.begin(), range.end(), result.begin());
         return result;
-    }())
+    }(_end - _begin))
     { assert(_begin < _end); }
 
     /// copy the contents of @p other 's hyper range into `this` 's hyper range
-    /// @note @p other can be any view as long as `other.size()` == `this->size()`
+    /// @note @p other can be any view as long as `other.size() == this->size()`
     ///       this allows for "reshaping" data
     /// Usage example:
     /// @code
@@ -1026,18 +1011,18 @@ public:
 
     // <editor-fold defaultstate="collapsed" desc="Whole-Array Iterators">
     // from <array>
-          iterator         begin()         noexcept { return iterator(*this);                    }
-    const_iterator         begin()   const noexcept { return const_iterator(*this);              }
-          iterator         end()           noexcept { return iterator(*this, lengths());         }
-    const_iterator         end()     const noexcept { return const_iterator(*this, lengths());   }
-          reverse_iterator rbegin()        noexcept { return reverse_iterator(end());            }
-    const_reverse_iterator rbegin()  const noexcept { return const_reverse_iterator(end());      }
-          reverse_iterator rend()          noexcept { return reverse_iterator(begin());          }
-    const_reverse_iterator rend()    const noexcept { return const_reverse_iterator(begin());    }
-    const_iterator         cbegin()  const noexcept { return const_iterator(*this);              }
-    const_iterator         cend()    const noexcept { return const_iterator(*this, lengths());   }
-    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end());      }
-    const_reverse_iterator crend()   const noexcept { return const_reverse_iterator(begin());    }
+          iterator         begin()         noexcept { return iterator(*this);                  }
+    const_iterator         begin()   const noexcept { return const_iterator(*this);            }
+          iterator         end()           noexcept { return iterator(*this, lengths());       }
+    const_iterator         end()     const noexcept { return const_iterator(*this, lengths()); }
+          reverse_iterator rbegin()        noexcept { return reverse_iterator(end());          }
+    const_reverse_iterator rbegin()  const noexcept { return const_reverse_iterator(end());    }
+          reverse_iterator rend()          noexcept { return reverse_iterator(begin());        }
+    const_reverse_iterator rend()    const noexcept { return const_reverse_iterator(begin());  }
+    const_iterator         cbegin()  const noexcept { return const_iterator(*this);            }
+    const_iterator         cend()    const noexcept { return const_iterator(*this, lengths()); }
+    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end());    }
+    const_reverse_iterator crend()   const noexcept { return const_reverse_iterator(begin());  }
     // </editor-fold>
 
     //hyper_index_type begin_index() const noexcept { return _begin; }
@@ -1139,12 +1124,17 @@ public:
     template <typename... Indices>
     internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
                           reference>
-    operator()(Indices... indices) const { return _array->operator[](hyper_index_type{indices...}); }
+    operator()(Indices... indices) const { return operator[](hyper_index_type{indices...}); }
 
     template <typename... Indices>
     internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
                           flat_index_type>
-    flatIndex(Indices... indices) const { return internal::cursor_distance_to_origin({indices...}, _begin, _end); }
+    flatIndex(Indices... indices) const
+    {
+        return internal::cursor_distance_to_origin(
+            ((index<Dimensions>{indices...}) - _begin)._indices,
+            _hyperRange);
+    }
 
 
 private:
@@ -1171,7 +1161,9 @@ private:
         }
 
         const difference_type distance_to_origin =
-            internal::cursor_distance_to_origin<Order>(cursor, _begin, _end) + distance_;
+            internal::cursor_distance_to_origin<Order>((cursor - _begin)._indices,
+                                                       _hyperRange)
+            + distance_;
 
         if (distance_to_origin >= static_cast<difference_type>(_flatRange))
         {

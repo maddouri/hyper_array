@@ -36,6 +36,24 @@ void _print2d(const HyperArray& ha) {
     cout << "]" << endl;
 
 }
+template <typename T, std::size_t D, hyper_array::array_order O, bool b>
+void _print2d(const hyper_array::view<T, D, O, b>& hv) {
+
+    cout << "v[" << endl;
+    size_t i = 0;
+    for (size_t i0 = 0 ; i0 < hv.length(0) ; ++i0)
+    {
+        cout << "    ";
+        for (size_t i1 = 0 ; i1 < hv.length(1) ; ++i1)
+        {
+            cout << hv[{i0, i1}] << ":" << hv[i++] << " ";
+
+        }
+        cout << endl;
+    }
+    cout << "]" << endl;
+
+}
 #define print2d(ha) { cout << #ha << ": "; _print2d(ha); }
 
 int main()
@@ -234,12 +252,13 @@ int main()
         {
             array<double, dims, array_order::ROW_MAJOR> arr{lengths};
             std::iota(arr.begin(), arr.end(), 0.);
-//            const view<double, arr.dimensions(), arr.order(), true> vw{arr};//, idx_begin, idx_end};
+            const view<double, arr.dimensions(), arr.order(), true> vw{arr, idx_begin, idx_end};
 //            iterator<double, arr.dimensions(), arr.order(), true> it(vw);//, idx_min, idx_max);
             iterator<double, arr.dimensions(), arr.order(), true> it(arr);//, idx_min, idx_max);
 
             cout << it.order() << ": go forward: " << arr << "\n";
             print2d(arr);
+            print2d(vw);
             print(it << " " << *it);
             while (it.cursor() != (it.end() - 1))
             {
