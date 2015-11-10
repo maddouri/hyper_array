@@ -308,7 +308,7 @@ int main()
         array<int, 3, array_order::ROW_MAJOR> a{2, 4, 3};
         // init a...
         array<double, 2, array_order::COLUMN_MAJOR> b{3, 2};
-        view<int, a.dimensions(), a.order()> va{a, {1, 1, 0}, {2, 3, 3}};
+        view<int, a.dimensions(), a.order()> va{a, {1, 1, 0}, index<3>{2, 3, 3}};
         view<double, b.dimensions(), b.order()> vb{b};
         vb = va;
 

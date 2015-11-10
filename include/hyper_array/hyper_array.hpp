@@ -924,13 +924,13 @@ public:
     // </editor-fold>
 
 private:
-    // @todo change _flatRange to _size and _hyperRange to _lengths
-    // @todo remove either _end or _hyperRange
+    // @todo change _flatRange to _size
+    // @todo remove either _end or _lengths
     array_type*                         _array;
     hyper_index_type                    _begin;
-    hyper_index_type                    _end;         ///< "one past the end"
-    size_type                           _flatRange;
-    ::std::array<size_type, Dimensions> _hyperRange;
+    //hyper_index_type                    _end;         ///< "one past the end"
+    ::std::array<size_type, Dimensions> _lengths;
+    size_type                           _size;
 
 public:
 
@@ -938,7 +938,7 @@ public:
     // this is a workaround for creating const_iterator from non-const views
     operator view<value_type, Dimensions, Order, true>() const
     {
-        return {*_array, _begin, _end};
+        return {*_array, _begin, _begin + _lengths};
     }
 
     view() = delete;
@@ -946,40 +946,51 @@ public:
     view(const view_type& other)
     : _array{other._array}
     , _begin{other._begin}
-    , _end{other._end}
-    , _flatRange{other._flatRange}
-    , _hyperRange(other._hyperRange)
-    { assert(_begin < _end); }
+    //, _end{other._end}
+    , _lengths(other._lengths)
+    , _size{other._size}
+    {}// assert(_begin < _end); }
 
     view(view_type&& other)
     : _array{other._array}
     , _begin{std::move(other._begin)}
-    , _end{std::move(other._end)}
-    , _flatRange{other._flatRange}
-    , _hyperRange(std::move(other._hyperRange))
-    { assert(_begin < _end); }
+    //, _end{std::move(other._end)}
+    , _lengths(std::move(other._lengths))
+    , _size{other._size}
+    {}// assert(_begin < _end); }
 
     view(array_type& array_)
     : _array(std::addressof(array_))
     , _begin{0}
-    , _end(array_.lengths())
-    , _flatRange{array_.size()}
-    , _hyperRange(array_.lengths())
-    { assert(_begin < _end); }
+    //, _end(array_.lengths())
+    , _lengths(array_.lengths())
+    , _size{array_.size()}
+    {}// assert(_begin < _end); }
 
     view(array_type& array_,
          const hyper_index_type& begin_,
          const hyper_index_type& end_)
     : _array(std::addressof(array_))
     , _begin{begin_}
-    , _end{end_}
-    , _flatRange{internal::compute_flat_range<Dimensions>(begin_, end_)}
-    , _hyperRange([this](const hyper_index_type& range){
-        decltype(_hyperRange) result;
+    //, _end{end_}
+    , _lengths([this](const hyper_index_type& range){
+        decltype(_lengths) result;
         std::copy(range.begin(), range.end(), result.begin());
         return result;
-    }(_end - _begin))
-    { assert(_begin < _end); }
+    }(end_ - begin_))
+    , _size{internal::compute_flat_range<Dimensions>(begin_, end_)}
+    {}// assert(_begin < _end); }
+
+    view(array_type& array_,
+         const hyper_index_type&                    begin_,
+         const ::std::array<size_type, Dimensions>& lengths_)
+    : _array(std::addressof(array_))
+    , _begin{begin_}
+    //, _end{begin_ + lengths_}
+    , _lengths(lengths_)
+    , _size{std::accumulate(lengths_.begin(), lengths_.end(),
+                            static_cast<size_type>(1), std::multiplies<size_type>{})}
+    {}// assert(_begin < _end); }
 
     /// copy the contents of @p other 's hyper range into `this` 's hyper range
     /// @note @p other can be any view as long as `other.size() == this->size()`
@@ -1042,12 +1053,12 @@ public:
     {
         assert(dimensionIndex < Dimensions);
 
-        return _hyperRange[dimensionIndex];
+        return _lengths[dimensionIndex];
     }
 
     const ::std::array<size_type, Dimensions>& lengths() const noexcept
     {
-        return _hyperRange;
+        return _lengths;
     }
 
 //    size_type coeff(const size_type coeffIndex) const
@@ -1064,7 +1075,7 @@ public:
 
     size_type size() const noexcept
     {
-        return _flatRange;
+        return _size;
     }
 
     //      pointer data()       noexcept { return _array->data(); }
@@ -1086,7 +1097,7 @@ public:
     //    hyper_index_type idx{indices...};
     //    return validateIndexRanges(idx)
     //         ? operator[](idx)
-    //         : operator[](_flatRange);
+    //         : operator[](_size);
     //}
     //
     //template <typename... Indices>
@@ -1097,7 +1108,7 @@ public:
     //    hyper_index_type idx{indices...};
     //    return validateIndexRanges(idx)
     //         ? operator[](idx)
-    //         : operator[](_flatRange);
+    //         : operator[](_size);
     //}
 
     template <typename... Indices>
@@ -1108,7 +1119,7 @@ public:
         const hyper_index_type idx{indices...};
         return validateIndexRanges(idx)
              ? operator[](idx)
-             : operator[](_flatRange);
+             : operator[](_size);
     }
 
     //template <typename... Indices>
@@ -1133,7 +1144,7 @@ public:
     {
         return internal::cursor_distance_to_origin(
             ((index<Dimensions>{indices...}) - _begin)._indices,
-            _hyperRange);
+            _lengths);
     }
 
 
@@ -1141,7 +1152,7 @@ private:
 
     void advance_cursor(hyper_index_type& cursor, difference_type distance_) const
     {
-        if (cursor >= _end)
+        if ((_begin + cursor) >= _lengths)
         {
             if (distance_ < 0)
             {
@@ -1151,7 +1162,7 @@ private:
                 //   "end - n": the n'th element starting from the end
                 // if cursor is >= _end, "cursor - 1" is NOT the last accessible element
                 // therefore, _cursor and distance_ have to be re-adjusted
-                cursor = _end - 1;
+                cursor = (_begin + _lengths) - 1;
                 ++distance_;  // yes, increment -- i.e. reduce the distance (distance < 0)
             }
             else
@@ -1162,12 +1173,12 @@ private:
 
         const difference_type distance_to_origin =
             internal::cursor_distance_to_origin<Order>((cursor - _begin)._indices,
-                                                       _hyperRange)
+                                                       _lengths)
             + distance_;
 
-        if (distance_to_origin >= static_cast<difference_type>(_flatRange))
+        if (distance_to_origin >= static_cast<difference_type>(_size))
         {
-            cursor = _end;
+            cursor = _begin + _lengths;
         }
         else if (distance_to_origin <= 0)
         {
@@ -1179,7 +1190,7 @@ private:
                                               cursor,
                                               distance_to_origin,
                                               _begin,
-                                              _end);
+                                              _begin + _lengths);
         }
     }
 
@@ -1190,10 +1201,10 @@ private:
         std::ostringstream oss;
         for (flat_index_type i = 0; i < Dimensions; ++i)
         {
-            if ((idx[i] >= _end[i]) || (idx[i] < 0))
+            if ((idx[i] >= (_begin[i] + _lengths[i])) || (idx[i] < 0))
             {
                 oss << "Index #" << i << " [== " << idx[i] << "]"
-                    << " is out of the [0, " << (_end[i]-1) << "] range. ";
+                    << " is out of the [0, " << ((_begin[i] + _lengths[i])-1) << "] range. ";
             }
         }
 
