@@ -1,7 +1,7 @@
-| branch | ubuntu [clang/gcc] | windows [msvc] |
+| Branch | Ubuntu<br>[clang, gcc] | Windows<br>[gcc] |
 |---|---|---|
-| master | [![Build Status](https://travis-ci.org/maddouri/hyper_array.svg?branch=master)](https://travis-ci.org/maddouri/hyper_array) | work in progress |
-| develop | [![Build Status](https://travis-ci.org/maddouri/hyper_array.svg?branch=develop)](https://travis-ci.org/maddouri/hyper_array) | work in progress |
+| master | [![Build Status](https://travis-ci.org/maddouri/hyper_array.svg?branch=master)](https://travis-ci.org/maddouri/hyper_array) | [![Build status](https://ci.appveyor.com/api/projects/status/biuk160w3wlpj5ej/branch/master?svg=true)](https://ci.appveyor.com/project/maddouri/hyper-array/branch/master) |
+| develop | [![Build Status](https://travis-ci.org/maddouri/hyper_array.svg?branch=develop)](https://travis-ci.org/maddouri/hyper_array) | [![Build status](https://ci.appveyor.com/api/projects/status/biuk160w3wlpj5ej/branch/develop?svg=true)](https://ci.appveyor.com/project/maddouri/hyper-array/branch/develop) |
 
 # hyper_array
 
