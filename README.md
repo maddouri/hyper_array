@@ -1,5 +1,5 @@
 | branch | ubuntu [clang/gcc] | windows [msvc] |
-|-|-|-|
+|---|---|---|
 | master | [![Build Status](https://travis-ci.org/maddouri/hyper_array.svg?branch=master)](https://travis-ci.org/maddouri/hyper_array) | work in progress |
 | develop | [![Build Status](https://travis-ci.org/maddouri/hyper_array.svg?branch=develop)](https://travis-ci.org/maddouri/hyper_array) | work in progress |
 
