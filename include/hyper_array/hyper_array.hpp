@@ -803,7 +803,7 @@ public:
     // assignment
     this_type& operator=(const this_type& other)
     {
-        _view   = other._view;
+        _view.reshape(other._view);
         _cursor = other._cursor;
         _end    = other._end;
 
@@ -811,7 +811,7 @@ public:
     }
     this_type& operator=(this_type&& other)
     {
-        _view   = other._view;
+        _view.reshape(other._view);
         _cursor = std::move(other._cursor);
         _end    = std::move(other._end);
 
@@ -994,7 +994,7 @@ public:
 
     /// copy the contents of @p other 's hyper range into `this` 's hyper range
     /// @note @p other can be any view as long as `other.size() == this->size()`
-    ///       this allows for "reshaping" data
+    ///       this allows for "reshaping" **data**
     /// Usage example:
     /// @code
     ///     array<int, 3, array_order::ROW_MAJOR> a{2, 4, 3};
@@ -1012,10 +1012,29 @@ public:
     >
     view_type& operator=(const view<T_ValueType, V_Dimensions, V_Order, V_IsConst>& other)
     {
-        assert(other.size() == size());          // allow "reshaping": versatile
+        assert(other.size() == size());          // allow "reshaping" **data**: versatile
         //assert(other.lengths() == lengths());  // require exact match
 
         std::copy(other.begin(), other.end(), begin());
+
+        return *this;
+    }
+
+    /// "reshapes" the **view**
+    template <
+        typename    T_ValueType,
+        //std::size_t V_Dimensions,  // require: other.dimensions() == this->dimensions()
+        array_order V_Order,
+        bool        V_IsConst
+    >
+    view_type& reshape(const view<T_ValueType, Dimensions, V_Order, V_IsConst>& other)
+    {
+        assert(other._begin < _array->lengths());
+        assert((other._begin + other.lengths()) < _array->lengths());
+
+        _begin   = other._begin;
+        _lengths = other.lengths();
+        _size    = other._size;
 
         return *this;
     }
