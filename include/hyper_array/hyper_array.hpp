@@ -379,6 +379,14 @@ std::ptrdiff_t cursor_distance_to_origin_dispatch(const array_order_tag<array_or
                                                   const ::std::array<D, Dimensions>& diff,
                                                   const ::std::array<R, Dimensions>& ranges)
 {
+    if (!std::equal(diff.begin(), diff.end(), ranges.begin(),
+                    [](const D d, const R r){ return (0 <= d) && (d < r); }))
+    {
+        return std::accumulate(ranges.begin(), ranges.end(),
+                               static_cast<std::ptrdiff_t>(1),
+                               std::multiplies<std::ptrdiff_t>{});
+    }
+
     std::ptrdiff_t d = 0;
     d += diff[0];
     for (std::size_t i = 1; i < Dimensions; ++i)
@@ -386,7 +394,7 @@ std::ptrdiff_t cursor_distance_to_origin_dispatch(const array_order_tag<array_or
         d += diff[i] * std::accumulate(ranges.begin(),
                                        ranges.begin() + i,
                                        static_cast<std::ptrdiff_t>(1),
-                                       std::multiplies<std::ptrdiff_t>());
+                                       std::multiplies<std::ptrdiff_t>{});
     }
     return d;
 }
@@ -396,6 +404,14 @@ std::ptrdiff_t cursor_distance_to_origin_dispatch(const array_order_tag<array_or
                                                   const ::std::array<D, Dimensions>& diff,
                                                   const ::std::array<R, Dimensions>& ranges)
 {
+    if (!std::equal(diff.begin(), diff.end(), ranges.begin(),
+                    [](const D d, const R r){ return (0 <= d) && (d < r); }))
+    {
+        return std::accumulate(ranges.begin(), ranges.end(),
+                               static_cast<std::ptrdiff_t>(1),
+                               std::multiplies<std::ptrdiff_t>{});
+    }
+
     std::ptrdiff_t d = 0;
     d += diff[Dimensions - 1];
     for (std::size_t i = 1; i < Dimensions; ++i)
@@ -534,6 +550,14 @@ public:
         _indices = std::move(other._indices);
         return *this;
     }
+    template<typename I>
+    internal::enable_if_t<std::is_integral<typename std::remove_reference<I>::type>::value,
+                          this_type&>
+    operator=(const I val)
+    {
+        _indices.fill(static_cast<value_type>(val));
+        return *this;
+    }
 
     bool operator==(const this_type& other) const { return _indices == other._indices; }
     bool operator!=(const this_type& other) const { return _indices != other._indices; }
@@ -555,7 +579,7 @@ public:
     }
 
     // increment to all
-    this_type operator+(const ptrdiff_t d) const
+    this_type operator+(const value_type d) const
     {
         this_type result;
         std::transform(_indices.begin(), _indices.end(),
@@ -566,7 +590,7 @@ public:
         return result;
     }
     // decrement all
-    this_type operator-(const ptrdiff_t d) const
+    this_type operator-(const value_type d) const
     {
         return (*this) + (-d);
     }
@@ -785,16 +809,16 @@ public:
     this_type& operator++() { return advance_cursor( 1); }
     this_type& operator--() { return advance_cursor(-1); }
     // postfix inc/dec
-    this_type operator++(const int) { this_type prev{*this}; advance_cursor( 1); return prev; }
-    this_type operator--(const int) { this_type prev{*this}; advance_cursor(-1); return prev; }
+    this_type operator++(const int) { this_type prev{*this}; operator++(); return prev; }
+    this_type operator--(const int) { this_type prev{*this}; operator--(); return prev; }
     // compound assignment
     this_type& operator+=(const difference_type d) { return advance_cursor( d); }
     this_type& operator-=(const difference_type d) { return advance_cursor(-d); }
     // arithmetic operations with integral types: "iterator +/- number" AND "number +/- iterator"
-    this_type operator+(const difference_type& d) const { return (this_type{*this}).advance_cursor( d); }
-    this_type operator-(const difference_type& d) const { return (this_type{*this}).advance_cursor(-d); }
-    friend this_type operator+(const difference_type& d, const this_type& it) { return it + d; }
-    friend this_type operator-(const difference_type& d, const this_type& it) { return it - d; }
+    this_type operator+(const difference_type d) const { return (this_type{*this}).operator+=(d); }
+    this_type operator-(const difference_type d) const { return (this_type{*this}).operator-=(d); }
+    friend this_type operator+(const difference_type d, const this_type& it) { return it + d; }
+    //friend this_type operator-(const difference_type d, const this_type& it) { return -(it - d); }  // doesn't make sense
     // arithmetic operations with other iterators
     difference_type operator-(const this_type& other) const
     {
@@ -869,7 +893,7 @@ private:
         }
         else if (distance_to_origin <= 0)
         {
-            _cursor = hyper_index_type{0};
+            _cursor = 0;
         }
         else
         {
@@ -1106,7 +1130,7 @@ public:
     reference operator[](const flat_index_type  idx) const { return _array->operator[](absolute_index(idx)); }
     //      reference operator[](const hyper_index_type idx)       { return _array->operator[](absolute_index(idx)); }
     //const_reference operator[](const hyper_index_type idx) const { return _array->operator[](absolute_index(idx)); }
-    reference operator[](const hyper_index_type idx) const { return _array->operator[](absolute_index(idx)); }
+    reference operator[](const hyper_index_type& idx) const { return _array->operator[](absolute_index(idx)); }
 
     //template <typename... Indices>
     //internal::enable_if_t<internal::are_indices<Dimensions, Indices...>::value,
@@ -1717,9 +1741,9 @@ void copyToStream(ContainerType&& container,
                   std::ostream&   out,
                   const char      separator[] = " ")
 {
-    std::copy(container.begin(),
-              container.end(),
-              std::ostream_iterator<decltype(*container.begin())>(out, separator));
+    std::copy(std::begin(container),
+              std::end(container),
+              std::ostream_iterator<decltype(*std::begin(container))>(out, separator));
 }
 
 }
@@ -1769,6 +1793,23 @@ std::ostream& operator<<(std::ostream& out,
                          const hyper_array::index<Dimensions>& idx)
 {
     out << "( "; hyper_array::internal::copyToStream(idx, out); out << ")";
+    return out;
+}
+
+template <typename ValueType, size_t Dimensions, hyper_array::array_order Order, bool IsConst>
+inline
+std::ostream& operator<<(std::ostream& out,
+                         const hyper_array::view<ValueType, Dimensions, Order, IsConst>& ha)
+{
+    using hyper_array::internal::copyToStream;
+
+    out << "[dimensions: " << ha.dimensions()                 << " ]";
+    out << "[order: "      << ha.order()                      << " ]";
+    out << "[is_const: "   << (IsConst ? "true" : "false")    << " ]";
+    out << "[lengths: "     ; copyToStream(ha.lengths(), out) ; out << "]";
+    out << "[size: "       << ha.size()                       << " ]";
+    out << "[data: "        ; copyToStream(ha, out)           ; out << "]";
+
     return out;
 }
 

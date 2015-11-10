@@ -306,11 +306,28 @@ int main()
 
         using namespace hyper_array;
         array<int, 3, array_order::ROW_MAJOR> a{2, 4, 3};
-        // init a...
+        std::iota(a.begin(), a.end(), 1);
         array<double, 2, array_order::COLUMN_MAJOR> b{3, 2};
-        view<int, a.dimensions(), a.order()> va{a, {1, 1, 0}, index<3>{2, 3, 3}};
+        std::iota(b.rbegin(), b.rend(), -6);
+        view<int, a.dimensions(), a.order(), true> va{a, {1, 1, 0}, index<3>{2, 3, 3}};
         view<double, b.dimensions(), b.order()> vb{b};
+        print(a);
+        print(b);
+        print(va);
+        print(vb);
         vb = va;
+        print(a);
+        print(b);
+        print(va);
+        print(vb);
+
+        cout << "[ ";
+        //for (auto& x : vb)
+        //{
+        //    cout << x << " ";
+        //}
+        std::copy(vb.begin(), vb.end(), std::ostream_iterator<double>(cout, " "));
+        cout << " ]" << endl;
 
     }
 
