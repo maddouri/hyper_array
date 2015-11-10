@@ -68,6 +68,11 @@ using enable_if_t = typename std::enable_if<b, T>::type;
 template <bool b, typename T, typename F>
 using conditional_t = typename std::conditional<b, T, F>::type;
 
+/// shorthand for the std::common_type syntax
+/// http://en.cppreference.com/w/cpp/types/common_type
+template <typename... Ts>
+using common_type_t = typename std::common_type<Ts...>::type;
+
 /// building block of a neat trick for checking multiple types against a given trait
 template <bool...>
 struct bool_pack
@@ -379,8 +384,9 @@ std::ptrdiff_t cursor_distance_to_origin_dispatch(const array_order_tag<array_or
                                                   const ::std::array<D, Dimensions>& diff,
                                                   const ::std::array<R, Dimensions>& ranges)
 {
+    using T = internal::common_type_t<D, R>;
     if (!std::equal(diff.begin(), diff.end(), ranges.begin(),
-                    [](const D d, const R r){ return (0 <= d) && (d < r); }))
+                    [](const T d, const T r){ return (0 <= d) && (d < r); }))
     {
         return std::accumulate(ranges.begin(), ranges.end(),
                                static_cast<std::ptrdiff_t>(1),
@@ -404,8 +410,9 @@ std::ptrdiff_t cursor_distance_to_origin_dispatch(const array_order_tag<array_or
                                                   const ::std::array<D, Dimensions>& diff,
                                                   const ::std::array<R, Dimensions>& ranges)
 {
+    using T = internal::common_type_t<D, R>;
     if (!std::equal(diff.begin(), diff.end(), ranges.begin(),
-                    [](const D d, const R r){ return (0 <= d) && (d < r); }))
+                    [](const T d, const T r){ return (0 <= d) && (d < r); }))
     {
         return std::accumulate(ranges.begin(), ranges.end(),
                                static_cast<std::ptrdiff_t>(1),
