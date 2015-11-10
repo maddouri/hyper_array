@@ -1,6 +1,20 @@
 
+# @todo enable this when MSVC supports expression SFINAE
+# build_script:
+#   - mkdir _build
+#   - cd _build
+#   - cmake -G "Visual Studio 14 Win64" ..
+#   - cmake --build .
+
+# MSYS2: https://msys2.github.io/
+# https://github.com/appveyor/ci/issues/352
+# https://github.com/ninenines/erlang.mk/blob/2.0.0-pre.1/appveyor.yml
+
+before_build:
+- C:\msys64\usr\bin\bash -lc "pacman --needed --noconfirm -Sy pacman-mirrors"
+- C:\msys64\usr\bin\bash -lc "pacman --noconfirm -Sy"
+- C:\msys64\usr\bin\bash -lc "pacman --noconfirm -S make cmake gcc"
+- mkdir _build
+
 build_script:
-  - mkdir _build
-  - cd _build
-  - cmake -G "Visual Studio 14 Win64" ..
-  - cmake --build .
+- C:\msys64\usr\bin\bash -lc "cd $APPVEYOR_BUILD_FOLDER/_build && cmake -G'Unix Makefiles' .. && cmake --build ."
