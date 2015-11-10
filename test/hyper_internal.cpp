@@ -53,7 +53,9 @@ TEST_CASE("ct_prod", "[type_traits]")
 {
     REQUIRE(hyper_array::internal::ct_prod(1, 2) == 2);
     REQUIRE(Approx(hyper_array::internal::ct_prod(-10.0, 10.0)) == -100.0);
-    REQUIRE_FALSE(hyper_array::internal::ct_prod(300000000  , 300000000  ) == 90000000000000000  );
+    // expect overflow
+    // won't compile w/ gcc 4.9.2 on windows [-Werror=type-limits]
+    //REQUIRE_FALSE(hyper_array::internal::ct_prod(300000000  , 300000000  ) == 90000000000000000  );
     REQUIRE(      hyper_array::internal::ct_prod(300000000LL, 300000000LL) == 90000000000000000LL);
 }
 
