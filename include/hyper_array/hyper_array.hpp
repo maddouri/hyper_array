@@ -747,7 +747,6 @@ private:
     /// views are cheap to create.
     /// also this solves the problem of constructing an iterator from an rvalue view&&
     view_type        _view;
-    hyper_index_type _end;     ///< one past the end. "relative" end -- i.e. view.lengths()
     hyper_index_type _cursor;
 
 public:
@@ -760,39 +759,33 @@ public:
 
     iterator()
     : _view{nullptr}
-    , _end{}
     , _cursor{}
     {}
 
     iterator(const this_type& other)
     : _view{other._view}
-    , _end{other._end}
     , _cursor{other._cursor}
     {}
 
     iterator(this_type&& other)
     : _view{std::move(other._view)}
-    , _end{std::move(other._end)}
     , _cursor{std::move(other._cursor)}
     {}
 
     iterator(const view_type& view_)  // const typename std::remove_const<view_type>::type ?
     : _view{view_}
-    , _end(view_.lengths())
     , _cursor{0}
     {}
 
     iterator(const view_type& view_,
              const flat_index_type cursor)
     : _view{view_}
-    , _end(view_.lengths())
     , _cursor{0}
     { advance_cursor(cursor); }
 
     iterator(const view_type& view_,
              const hyper_index_type& cursor)
     : _view{view_}
-    , _end(view_.lengths())
     , _cursor{cursor}
     {}
 
@@ -802,8 +795,8 @@ public:
 
     const hyper_index_type& cursor()                  const noexcept { return _cursor; }
           difference_type   cursor(const size_type i) const          { assert(i < Dimensions); return _cursor[i]; }
-    const hyper_index_type& end()                     const noexcept { return _end; }
-          difference_type   end(const size_type i)    const          { assert(i < Dimensions); return _end[i];    }
+    const hyper_index_type  end()                     const noexcept { return {_view.lengths()}; }
+          difference_type   end(const size_type i)    const          { assert(i < Dimensions); return static_cast<difference_type>(_view.length(i)); }
 
     // RandomAccessIterator interface
     // http://www.cplusplus.com/reference/iterator/RandomAccessIterator/
@@ -836,7 +829,6 @@ public:
     {
         _view.reshape(other._view);
         _cursor = other._cursor;
-        _end    = other._end;
 
         return *this;
     }
@@ -844,7 +836,6 @@ public:
     {
         _view.reshape(other._view);
         _cursor = std::move(other._cursor);
-        _end    = std::move(other._end);
 
         return *this;
     }
@@ -872,7 +863,7 @@ private:
     // increments/decrements the cursor by the given flattened distance_
     this_type& advance_cursor(difference_type distance_)
     {
-        if (_cursor >= _end)
+        if (_cursor >= _view.lengths())
         {
             if (distance_ < 0)
             {
@@ -882,7 +873,7 @@ private:
                 //   "end - n": the n'th element starting from the end
                 // if cursor is >= _end, "cursor - 1" is NOT the last accessible element
                 // therefore, _cursor and distance_ have to be re-adjusted
-                _cursor = _end - 1;
+                _cursor = hyper_index_type{_view.lengths()} - 1;
                 ++distance_;  // yes, increment -- i.e. reduce the distance (distance < 0)
             }
             else
@@ -896,7 +887,7 @@ private:
 
         if (distance_to_origin >= static_cast<difference_type>(_view.size()))
         {
-            _cursor = _end;
+            _cursor = _view.lengths();
         }
         else if (distance_to_origin <= 0)
         {
@@ -908,7 +899,7 @@ private:
                                               _cursor,
                                               distance_to_origin,
                                               hyper_index_type{0},
-                                              _end);
+                                              hyper_index_type{_view.lengths()});
         }
 
         return *this;
@@ -916,7 +907,7 @@ private:
 
     difference_type flat_cursor() const
     {
-        return internal::cursor_distance_to_origin<Order>(_cursor, _end);
+        return internal::cursor_distance_to_origin<Order>(_cursor._indices, _view.lengths());
     }
 
 };
@@ -955,13 +946,10 @@ public:
     // </editor-fold>
 
 private:
-    // @todo change _flatRange to _size
-    // @todo remove either _end or _lengths
     array_type*                         _array;
     hyper_index_type                    _begin;
-    //hyper_index_type                    _end;         ///< "one past the end"
     ::std::array<size_type, Dimensions> _lengths;
-    size_type                           _size;
+    //size_type                           _size;
 
 public:
 
@@ -977,25 +965,22 @@ public:
     view(const view_type& other)
     : _array{other._array}
     , _begin{other._begin}
-    //, _end{other._end}
     , _lengths(other._lengths)
-    , _size{other._size}
+    //, _size{other._size}
     {}// assert(_begin < _end); }
 
     view(view_type&& other)
     : _array{other._array}
     , _begin{std::move(other._begin)}
-    //, _end{std::move(other._end)}
     , _lengths(std::move(other._lengths))
-    , _size{other._size}
+    //, _size{other._size}
     {}// assert(_begin < _end); }
 
     view(array_type& array_)
     : _array(std::addressof(array_))
     , _begin{0}
-    //, _end(array_.lengths())
     , _lengths(array_.lengths())
-    , _size{array_.size()}
+    //, _size{array_.size()}
     {}// assert(_begin < _end); }
 
     view(array_type& array_,
@@ -1003,13 +988,12 @@ public:
          const hyper_index_type& end_)
     : _array(std::addressof(array_))
     , _begin{begin_}
-    //, _end{end_}
     , _lengths([this](const hyper_index_type& range){
         decltype(_lengths) result;
         std::copy(range.begin(), range.end(), result.begin());
         return result;
     }(end_ - begin_))
-    , _size{internal::compute_flat_range<Dimensions>(begin_, end_)}
+    //, _size{internal::compute_flat_range<Dimensions>(begin_, end_)}
     {}// assert(_begin < _end); }
 
     view(array_type& array_,
@@ -1017,10 +1001,9 @@ public:
          const ::std::array<size_type, Dimensions>& lengths_)
     : _array(std::addressof(array_))
     , _begin{begin_}
-    //, _end{begin_ + lengths_}
     , _lengths(lengths_)
-    , _size{std::accumulate(lengths_.begin(), lengths_.end(),
-                            static_cast<size_type>(1), std::multiplies<size_type>{})}
+    //, _size{std::accumulate(lengths_.begin(), lengths_.end(),
+    //                        static_cast<size_type>(1), std::multiplies<size_type>{})}
     {}// assert(_begin < _end); }
 
     /// copy the contents of @p other 's hyper range into `this` 's hyper range
@@ -1065,7 +1048,7 @@ public:
 
         _begin   = other._begin;
         _lengths = other.lengths();
-        _size    = other._size;
+        //_size    = other._size;
 
         return *this;
     }
@@ -1085,9 +1068,6 @@ public:
     const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end());    }
     const_reverse_iterator crend()   const noexcept { return const_reverse_iterator(begin());  }
     // </editor-fold>
-
-    //hyper_index_type begin_index() const noexcept { return _begin; }
-    //hyper_index_type end_index()   const noexcept { return _end; }
 
     // hyper array interface
 
@@ -1111,21 +1091,22 @@ public:
         return _lengths;
     }
 
-//    size_type coeff(const size_type coeffIndex) const
-//    {
-//        assert(coeffIndex < Dimensions);
-//
-//        return _array->coeffs()[coeffIndex];
-//    }
-
-//    const ::std::array<size_type, Dimensions>& coeffs() const noexcept
-//    {
-//        return _array->coeffs();
-//    }
+    //size_type coeff(const size_type coeffIndex) const
+    //{
+    //    assert(coeffIndex < Dimensions);
+    //
+    //    return _array->coeffs()[coeffIndex];
+    //}
+    //
+    //const ::std::array<size_type, Dimensions>& coeffs() const noexcept
+    //{
+    //    return _array->coeffs();
+    //}
 
     size_type size() const noexcept
     {
-        return _size;
+        //return _size;
+        return std::accumulate(_lengths.begin(), _lengths.end(), static_cast<size_type>(0));
     }
 
     //      pointer data()       noexcept { return _array->data(); }
@@ -1169,7 +1150,7 @@ public:
         const hyper_index_type idx{indices...};
         return validateIndexRanges(idx)
              ? operator[](idx)
-             : operator[](_size);
+             : operator[](size());
     }
 
     //template <typename... Indices>
@@ -1222,11 +1203,10 @@ private:
         }
 
         const difference_type distance_to_origin =
-            internal::cursor_distance_to_origin<Order>((cursor - _begin)._indices,
-                                                       _lengths)
+            internal::cursor_distance_to_origin<Order>((cursor - _begin)._indices, _lengths)
             + distance_;
 
-        if (distance_to_origin >= static_cast<difference_type>(_size))
+        if (distance_to_origin >= static_cast<difference_type>(size()))
         {
             cursor = _begin + _lengths;
         }
