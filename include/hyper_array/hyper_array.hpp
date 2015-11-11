@@ -527,6 +527,9 @@ public:
     /// returns the number of dimensions associated with this index
     static constexpr size_type dimensions() { return Dimensions; }
 
+    const ::std::array<value_type, Dimensions>& indices() const noexcept { return _indices; }
+          ::std::array<value_type, Dimensions>& indices()       noexcept { return _indices; }
+
     // accessors, return the i'th index
           value_type& operator[](size_type i)       { return _indices[i]; }
     const value_type& operator[](size_type i) const { return _indices[i]; }
