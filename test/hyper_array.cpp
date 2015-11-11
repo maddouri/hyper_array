@@ -24,10 +24,10 @@ TEST_CASE("index/ctor", "[ctor]")
     using hyper_array::index;
     constexpr std::size_t dims = 3;
     using value_type = typename hyper_array::index<dims>::value_type;
-    const std::array<value_type, dims> zero_array   = {0, 0, 0};
-    const std::array<value_type, dims> random_array = {-1, 10, 0};
+    const std::array<value_type, dims> zero_array   = {{0, 0, 0}};
+    const std::array<value_type, dims> random_array = {{-1, 10, 0}};
     const value_type special_number = 42;
-    const std::array<value_type, dims> special_array = {special_number, special_number, special_number};
+    const std::array<value_type, dims> special_array = {{special_number, special_number, special_number}};
 
     SECTION("index()")
     {

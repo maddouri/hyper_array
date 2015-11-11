@@ -46,6 +46,7 @@ script:
   - cd _build/cmake_build
   - $CMAKE3 -DCMAKE_BUILD_TYPE=$BUILD_TYPE ../..
   - $CMAKE3 --build .
+  - ./tests
 
 
 

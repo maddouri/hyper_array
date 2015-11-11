@@ -18,3 +18,4 @@ before_build:
 
 build_script:
 - C:\msys64\usr\bin\bash -lc "cd $APPVEYOR_BUILD_FOLDER/_build && cmake -G'Unix Makefiles' .. && cmake --build ."
+- C:\msys64\usr\bin\bash -lc "cd $APPVEYOR_BUILD_FOLDER/_build && ./tests"
