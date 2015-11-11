@@ -444,14 +444,14 @@ std::ptrdiff_t cursor_distance_to_origin(const index<Dimensions>& cursor,
                                          const index<Dimensions>& begin,
                                          const index<Dimensions>& end)
 {
-    return cursor_distance_to_origin<Order>((cursor - begin)._indices, (end - begin)._indices);
+    return cursor_distance_to_origin<Order>((cursor - begin).indices(), (end - begin).indices());
 }
 
 template <array_order Order, std::size_t Dimensions>
 std::ptrdiff_t cursor_distance_to_origin(const index<Dimensions>& cursor,
                                          const index<Dimensions>& end)
 {
-    return cursor_distance_to_origin<Order>(cursor._indices, end._indices);
+    return cursor_distance_to_origin<Order>(cursor.indices(), end.indices());
 }
 
 
@@ -478,7 +478,7 @@ public:
     using reverse_iterator       = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
-public:
+private:
     /// the "Dimensions"-tuple of indices
     ::std::array<value_type, Dimensions> _indices;
 
@@ -910,7 +910,7 @@ private:
 
     difference_type flat_cursor() const
     {
-        return internal::cursor_distance_to_origin<Order>(_cursor._indices, _view.lengths());
+        return internal::cursor_distance_to_origin<Order>(_cursor.indices(), _view.lengths());
     }
 
 };
@@ -1177,7 +1177,7 @@ public:
     flatIndex(Indices... indices) const
     {
         return internal::cursor_distance_to_origin(
-            ((index<Dimensions>{indices...}) - _begin)._indices,
+            ((index<Dimensions>{indices...}) - _begin).indices(),
             _lengths);
     }
 
@@ -1206,7 +1206,7 @@ private:
         }
 
         const difference_type distance_to_origin =
-            internal::cursor_distance_to_origin<Order>((cursor - _begin)._indices, _lengths)
+            internal::cursor_distance_to_origin<Order>((cursor - _begin).indices(), _lengths)
             + distance_;
 
         if (distance_to_origin >= static_cast<difference_type>(size()))
@@ -1513,13 +1513,13 @@ public:
     /// Returns the element at index `idx` in the data array
     value_type& operator[](const hyper_index_type& idx)
     {
-        return _dataOwner[internal::flatten_index(idx._indices, _coeffs)];
+        return _dataOwner[internal::flatten_index(idx.indices(), _coeffs)];
     }
 
     /// `const` version of operator[]
     const value_type& operator[](const hyper_index_type& idx) const
     {
-        return _dataOwner[internal::flatten_index(idx._indices, _coeffs)];
+        return _dataOwner[internal::flatten_index(idx.indices(), _coeffs)];
     }
 
     /// Returns the element at the given index tuple
