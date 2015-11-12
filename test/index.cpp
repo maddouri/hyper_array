@@ -98,3 +98,98 @@ TEST_CASE("index/template_args", "[template_args]")
         REQUIRE(idx.dimensions() == dims);
     }
 }
+
+TEST_CASE("index/element_access", "[element_access]")
+{
+    constexpr std::size_t              dims = 4;
+    ::std::array<std::ptrdiff_t, dims> idx_arr{{64, 42, 314, 9000}};
+    hyper_array::index<dims>           idx{idx_arr};
+
+    REQUIRE(idx.indices() == idx_arr);
+
+    for (std::size_t i = 0; i < dims; ++i)
+    {
+        REQUIRE(idx[i] == idx_arr[i]);
+
+        ++idx[i];
+        ++idx_arr[i];
+
+        REQUIRE(idx[i] == idx_arr[i]);
+    }
+}
+
+TEST_CASE("index/iterators", "[iterators]")
+{
+    // @todo test the iterators
+}
+
+TEST_CASE("index/assignment", "[assignment]")
+{
+    constexpr std::size_t              dims = 4;
+    const ::std::array<std::ptrdiff_t, dims> idx_arr{{64, 42, 314, 9000}};
+    const hyper_array::index<dims>           src{idx_arr};
+
+    SECTION("from lvalue index")
+    {
+        hyper_array::index<dims> dst = src;
+
+        REQUIRE(dst.indices() == src.indices());
+    }
+    SECTION("from rvalue index")
+    {
+        hyper_array::index<dims> dst = hyper_array::index<dims>{idx_arr[0], idx_arr[1], idx_arr[2], idx_arr[3]};
+
+        REQUIRE(dst.indices() == idx_arr);
+    }
+    SECTION("from array")
+    {
+        hyper_array::index<dims> dst = idx_arr;
+
+        REQUIRE(dst.indices() == idx_arr);
+    }
+}
+
+TEST_CASE("index/comparison", "[comparison]")
+{
+    constexpr std::size_t                    dims = 4;
+    const ::std::array<std::ptrdiff_t, dims> idx_arr{{64, 42, 314, 9000}};
+
+    SECTION("equality")
+    {
+        const hyper_array::index<dims> src{idx_arr};
+        const hyper_array::index<dims> dst{idx_arr};
+        REQUIRE      (src == dst);
+        REQUIRE_FALSE(src != dst);
+        REQUIRE      (src <= dst);
+        REQUIRE_FALSE(src <  dst);
+        REQUIRE_FALSE(src >  dst);
+        REQUIRE      (src >= dst);
+    }
+    SECTION("total order")
+    {
+        const hyper_array::index<dims> idx{1, 2, 3, -4};
+        const hyper_array::index<dims> other{7, 3, 4, 5};
+        REQUIRE_FALSE(idx == other);
+        REQUIRE      (idx != other);
+        REQUIRE      (idx <= other);
+        REQUIRE      (idx <  other);
+        REQUIRE_FALSE(idx >  other);
+        REQUIRE_FALSE(idx >= other);
+    }
+    SECTION("no relation, just different")
+    {
+        const hyper_array::index<dims> idx{-2, 3, 4, -1};
+        const hyper_array::index<dims> other{2, -3, -4, 1};
+        REQUIRE_FALSE(idx == other);
+        REQUIRE      (idx != other);
+        REQUIRE_FALSE(idx <= other);
+        REQUIRE_FALSE(idx <  other);
+        REQUIRE_FALSE(idx >  other);
+        REQUIRE_FALSE(idx >= other);
+    }
+}
+
+TEST_CASE("index/arithmetic", "[arithmetic]")
+{
+    // @todo add index arithmetic tests
+}
