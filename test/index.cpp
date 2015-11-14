@@ -191,5 +191,25 @@ TEST_CASE("index/comparison", "[comparison]")
 
 TEST_CASE("index/arithmetic", "[arithmetic]")
 {
-    // @todo add index arithmetic tests
+    constexpr std::size_t dims = 4;
+    using index_type = hyper_array::index<dims>;
+    index_type idx_a{1, 2, 3, 4};
+    index_type idx_b{-1, 2, 3, -4};
+
+    SECTION("add to all")
+    {
+        REQUIRE((idx_a + 3) == (index_type{4, 5, 6, 7}));
+    }
+    SECTION("substract from all")
+    {
+        REQUIRE((idx_a - 3) == (index_type{-2, -1, 0, 1}));
+    }
+    SECTION("add index")
+    {
+        REQUIRE((idx_a + idx_b) == (index_type{0, 4, 6, 0}));
+    }
+    SECTION("substract index")
+    {
+        REQUIRE((idx_a - idx_b) == (index_type{2, 0, 0, 8}));
+    }
 }
