@@ -1,4 +1,6 @@
-| Branch | Ubuntu<br>[clang, gcc] | Windows<br>[gcc] |
+[![License](https://img.shields.io/github/license/maddouri/hyper_array.svg)](LICENSE)
+
+| Branch | Linux [clang, gcc] | Windows [gcc] |
 |---|---|---|
 | master | [![Build Status](https://travis-ci.org/maddouri/hyper_array.svg?branch=master)](https://travis-ci.org/maddouri/hyper_array) | [![Build status](https://ci.appveyor.com/api/projects/status/biuk160w3wlpj5ej/branch/master?svg=true)](https://ci.appveyor.com/project/maddouri/hyper-array/branch/master) |
 | develop | [![Build Status](https://travis-ci.org/maddouri/hyper_array.svg?branch=develop)](https://travis-ci.org/maddouri/hyper_array) | [![Build status](https://ci.appveyor.com/api/projects/status/biuk160w3wlpj5ej/branch/develop?svg=true)](https://ci.appveyor.com/project/maddouri/hyper-array/branch/develop) |
