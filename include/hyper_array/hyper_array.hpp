@@ -276,7 +276,7 @@ std::size_t compute_flat_range(const Iterable& hyperRange_)
     // the "flat range" is the product of the sub ranges
     return std::accumulate(hyperRange_.begin(), hyperRange_.end(),
                            static_cast<std::size_t>(1),
-                           std::multiplies<ptrdiff_t>());
+                           std::multiplies<ptrdiff_t>{});
 }
 
 template <std::size_t Dimensions, typename Iterable>
@@ -1109,7 +1109,10 @@ public:
     size_type size() const noexcept
     {
         //return _size;
-        return std::accumulate(_lengths.begin(), _lengths.end(), static_cast<size_type>(0));
+        return std::accumulate(_lengths.begin(),
+                               _lengths.end(),
+                               static_cast<size_type>(1),
+                               std::multiplies<size_type>{});
     }
 
     //      pointer data()       noexcept { return _array->data(); }
